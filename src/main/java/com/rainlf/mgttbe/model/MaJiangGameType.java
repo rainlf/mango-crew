@@ -11,6 +11,7 @@ public enum MaJiangGameType {
     YI_PAO_SHUANG_XIANG("一炮双响", 3),
     YI_PAO_SAN_XIANG("一炮三响", 4),
     XIANG_GONG("相公", 5),
+    YUN_DONG("运动", 6),
     ;
 
     private final String name;

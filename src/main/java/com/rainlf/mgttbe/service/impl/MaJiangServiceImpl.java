@@ -35,10 +35,21 @@ public class MaJiangServiceImpl implements MaJiangService {
     public Integer saveMaJiangGame(SaveMaJiangGameRequest request) {
         MaJiangGame majiangGame = new MaJiangGame();
         majiangGame.setType(MaJiangGameType.fromCode(request.getGameType()));
-        majiangGame.setPlayer1(request.getPlayers().get(0));
-        majiangGame.setPlayer2(request.getPlayers().get(1));
-        majiangGame.setPlayer3(request.getPlayers().get(2));
-        majiangGame.setPlayer4(request.getPlayers().get(3));
+        
+        // 对于运动类型，只有player1设置为记录者，其他三个玩家用-1代替
+        if (majiangGame.getType() == MaJiangGameType.YUN_DONG) {
+            Integer recorderId = request.getRecorderId();
+            majiangGame.setPlayer1(recorderId);
+            majiangGame.setPlayer2(-1);
+            majiangGame.setPlayer3(-1);
+            majiangGame.setPlayer4(-1);
+        } else {
+            majiangGame.setPlayer1(request.getPlayers().get(0));
+            majiangGame.setPlayer2(request.getPlayers().get(1));
+            majiangGame.setPlayer3(request.getPlayers().get(2));
+            majiangGame.setPlayer4(request.getPlayers().get(3));
+        }
+        
         majiangGame = majiangGameManager.save(majiangGame);
 
         Integer gameId = majiangGame.getId();
@@ -57,12 +68,18 @@ public class MaJiangServiceImpl implements MaJiangService {
 
         // loser
         List<MaJiangGameItem> losers = new ArrayList<>();
-        for (Integer loser : request.getLosers()) {
-            MaJiangGameItem maJiangGameItem = new MaJiangGameItem();
-            maJiangGameItem.setGameId(gameId);
-            maJiangGameItem.setUserId(loser);
-            maJiangGameItem.setType(MaJiangUserType.LOSER);
-            losers.add(maJiangGameItem);
+        // 对于运动类型，不创建输家
+        if (majiangGame.getType() != MaJiangGameType.YUN_DONG) {
+            for (Integer loser : request.getLosers()) {
+                // 过滤掉无效的用户ID
+                if (loser != null && loser > 0) {
+                    MaJiangGameItem maJiangGameItem = new MaJiangGameItem();
+                    maJiangGameItem.setGameId(gameId);
+                    maJiangGameItem.setUserId(loser);
+                    maJiangGameItem.setType(MaJiangUserType.LOSER);
+                    losers.add(maJiangGameItem);
+                }
+            }
         }
 
         switch (majiangGame.getType()) {
@@ -117,21 +134,46 @@ public class MaJiangServiceImpl implements MaJiangService {
                 }
                 losers.getFirst().setPoints(-points);
             }
+            case YUN_DONG -> {
+                // 运动类型的特殊逻辑：没有输家，用户自行填入分数
+                if (winners.size() != 1) {
+                    throw new RuntimeException("运动类型只能记录一个用户");
+                }
+                // 验证只能记录自己
+                Integer recorderId = request.getRecorderId();
+                if (!Objects.equals(winners.getFirst().getUserId(), recorderId)) {
+                    throw new RuntimeException("运动类型只能记录自己");
+                }
+                // 使用用户填入的分数，不进行计算
+                MaJiangGameItem winner = winners.getFirst();
+                winner.setPoints(winner.getBasePoint());
+            }
         }
-
-        // recorder
-        MaJiangGameItem recorder = new MaJiangGameItem();
-        recorder.setGameId(gameId);
-        recorder.setUserId(request.getRecorderId());
-        recorder.setType(MaJiangUserType.RECORDER);
-        // 生成一个 0 到 99 之间的随机整数, 1% 加 20, 99% 加 1
-        int recorderPoints = (random.nextInt(100) < 1) ? 20 : 1;
-        recorder.setPoints(recorderPoints);
 
         List<MaJiangGameItem> items = new ArrayList<>();
         items.addAll(winners);
         items.addAll(losers);
-        items.add(recorder);
+        
+        if (majiangGame.getType() != MaJiangGameType.YUN_DONG) {
+            // recorder
+            MaJiangGameItem recorder = new MaJiangGameItem();
+            recorder.setGameId(gameId);
+            recorder.setUserId(request.getRecorderId());
+            recorder.setType(MaJiangUserType.RECORDER);
+            // 生成一个 0 到 99 之间的随机整数, 1% 加 20, 99% 加 1
+            int recorderPoints = (random.nextInt(100) < 1) ? 20 : 1;
+            recorder.setPoints(recorderPoints);
+            items.add(recorder);
+        } else {
+            // 运动类型有recorder，但不添加分数
+            MaJiangGameItem recorder = new MaJiangGameItem();
+            recorder.setGameId(gameId);
+            recorder.setUserId(request.getRecorderId());
+            recorder.setType(MaJiangUserType.RECORDER);
+            recorder.setPoints(0); // 分数设置为0，不影响用户积分
+            items.add(recorder);
+        }
+        
         majiangGameItemManager.save(items);
 
         // update user points with atom operation
@@ -191,9 +233,9 @@ public class MaJiangServiceImpl implements MaJiangService {
             }
 
             dto.setPlayer1(UserDTO.fromUser(userService.findUserById(game.getPlayer1())));
-            dto.setPlayer2(UserDTO.fromUser(userService.findUserById(game.getPlayer2())));
-            dto.setPlayer3(UserDTO.fromUser(userService.findUserById(game.getPlayer3())));
-            dto.setPlayer4(UserDTO.fromUser(userService.findUserById(game.getPlayer4())));
+            dto.setPlayer2(game.getPlayer2() != null && game.getPlayer2() > 0 ? UserDTO.fromUser(userService.findUserById(game.getPlayer2())) : null);
+            dto.setPlayer3(game.getPlayer3() != null && game.getPlayer3() > 0 ? UserDTO.fromUser(userService.findUserById(game.getPlayer3())) : null);
+            dto.setPlayer4(game.getPlayer4() != null && game.getPlayer4() > 0 ? UserDTO.fromUser(userService.findUserById(game.getPlayer4())) : null);
             dto.setCreatedTime(DateUtils.formatDateTime(game.getCreatedTime()));
             dto.setUpdatedTime(DateUtils.formatDateTime(game.getUpdatedTime()));
 
@@ -277,17 +319,26 @@ public class MaJiangServiceImpl implements MaJiangService {
     public PlayersDTO getMaJiangGamePlayers() {
         PlayersDTO playersDTO = new PlayersDTO();
 
-        List<MaJiangGame> maJiangGames = majiangGameManager.findLastGames(1, 0);
-        if (maJiangGames.isEmpty()) {
-            playersDTO.setCurrentPlayers(new ArrayList<>());
-        } else {
-            MaJiangGame maJiangGame = maJiangGames.getFirst();
+        // 获取最近的一条非运动类型的记录
+        List<MaJiangGame> maJiangGames = majiangGameManager.findLastGames(10, 0); // 获取最近10条记录以确保有非运动记录
+        MaJiangGame validGame = null;
+        for (MaJiangGame game : maJiangGames) {
+            if (game.getType() != MaJiangGameType.YUN_DONG) {
+                validGame = game;
+                break;
+            }
+        }
+        
+        if (validGame != null) {
             List<UserDTO> currentPlayers = new ArrayList<>();
-            currentPlayers.add(UserDTO.fromUser(userService.findUserById(maJiangGame.getPlayer1())));
-            currentPlayers.add(UserDTO.fromUser(userService.findUserById(maJiangGame.getPlayer2())));
-            currentPlayers.add(UserDTO.fromUser(userService.findUserById(maJiangGame.getPlayer3())));
-            currentPlayers.add(UserDTO.fromUser(userService.findUserById(maJiangGame.getPlayer4())));
+            currentPlayers.add(UserDTO.fromUser(userService.findUserById(validGame.getPlayer1())));
+            currentPlayers.add(UserDTO.fromUser(userService.findUserById(validGame.getPlayer2())));
+            currentPlayers.add(UserDTO.fromUser(userService.findUserById(validGame.getPlayer3())));
+            currentPlayers.add(UserDTO.fromUser(userService.findUserById(validGame.getPlayer4())));
             playersDTO.setCurrentPlayers(currentPlayers);
+        } else {
+            // 如果没有找到非运动记录，则返回空列表
+            playersDTO.setCurrentPlayers(new ArrayList<>());
         }
 
         List<User> users = userService.findAllUsers();

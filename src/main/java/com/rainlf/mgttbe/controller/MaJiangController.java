@@ -28,14 +28,14 @@ public class MaJiangController {
             @RequestParam(value = "limit", required = false, defaultValue = "10") Integer limit,
             @RequestParam(value = "offset", required = false, defaultValue = "0") Integer offset) {
         List<MaJiangGameLogDTO> result = majiangService.getMaJiangGameLogs(limit, offset);
-        result.forEach(x -> {
-            x.getPlayer1().setAvatar(null);
-            x.getPlayer2().setAvatar(null);
-            x.getPlayer3().setAvatar(null);
-            x.getPlayer4().setAvatar(null);
-            x.getWinners().forEach(y -> y.getUser().setAvatar(null));
-            x.getLosers().forEach(y -> y.getUser().setAvatar(null));
-        });
+        // result.forEach(x -> {
+        //     x.getPlayer1().setAvatar(null);
+        //     x.getPlayer2().setAvatar(null);
+        //     x.getPlayer3().setAvatar(null);
+        //     x.getPlayer4().setAvatar(null);
+        //     x.getWinners().forEach(y -> y.getUser().setAvatar(null));
+        //     x.getLosers().forEach(y -> y.getUser().setAvatar(null));
+        // });
         return ApiResponse.success(result);
     }
 
@@ -46,14 +46,14 @@ public class MaJiangController {
              @RequestParam(value = "limit", required = false, defaultValue = "10") Integer limit,
              @RequestParam(value = "offset", required = false, defaultValue = "0") Integer offset) {
         List<MaJiangGameLogDTO> result = majiangService.getMaJiangGamesByUser(userId, limit, offset);
-        result.forEach(x -> {
-            x.getPlayer1().setAvatar(null);
-            x.getPlayer2().setAvatar(null);
-            x.getPlayer3().setAvatar(null);
-            x.getPlayer4().setAvatar(null);
-            x.getWinners().forEach(y -> y.getUser().setAvatar(null));
-            x.getLosers().forEach(y -> y.getUser().setAvatar(null));
-        });
+        // result.forEach(x -> {
+        //     x.getPlayer1().setAvatar(null);
+        //     x.getPlayer2().setAvatar(null);
+        //     x.getPlayer3().setAvatar(null);
+        //     x.getPlayer4().setAvatar(null);
+        //     x.getWinners().forEach(y -> y.getUser().setAvatar(null));
+        //     x.getLosers().forEach(y -> y.getUser().setAvatar(null));
+        // });
         return ApiResponse.success(result);
     }
 
@@ -78,7 +78,12 @@ public class MaJiangController {
 
 
     private void validSaveMaJiangGameRequest(SaveMaJiangGameRequest request) {
-        if (request.getPlayers() == null || request.getPlayers().size() != 4) {
+        // 运动类型(6)特殊处理：只需要一个玩家，losers可以为空
+        boolean isSportType = request.getGameType() != null && request.getGameType() == 6;
+        
+        if (request.getPlayers() == null || 
+            (isSportType && request.getPlayers().size() != 1) || 
+            (!isSportType && request.getPlayers().size() != 4)) {
             throw new RuntimeException("Invalid number of players");
         }
 
@@ -90,7 +95,8 @@ public class MaJiangController {
             throw new RuntimeException("Invalid winners, winners is empty");
         }
 
-        if (request.getLosers() == null || request.getLosers().isEmpty()) {
+        // 运动类型允许losers为空
+        if (!isSportType && (request.getLosers() == null || request.getLosers().isEmpty())) {
             throw new RuntimeException("Invalid losers, losers is empty");
         }
 
@@ -106,14 +112,21 @@ public class MaJiangController {
         List<Integer> winners = request.getWinners().stream().map(SaveMaJiangGameRequest.Winner::getUserId).toList();
         List<Integer> losers = request.getLosers();
 
-        if (!Collections.disjoint(winners, losers)) {
-            throw new RuntimeException("Invalid winners or losers, cannot have common user");
-        }
+        // 赢家必须是玩家之一
         if (winners.stream().anyMatch(x -> !players.contains(x))) {
             throw new RuntimeException("Invalid winners, must be one of players");
         }
-        if (losers.stream().anyMatch(y -> !players.contains(y))) {
-            throw new RuntimeException("Invalid losers, must be one of players");
+
+        // 运动类型且losers为空时，不检查losers相关验证
+        if (!isSportType || (losers != null && !losers.isEmpty())) {
+            // 检查winners和losers是否有交集
+            if (!Collections.disjoint(winners, losers)) {
+                throw new RuntimeException("Invalid winners or losers, cannot have common user");
+            }
+            // 检查losers是否都是玩家之一
+            if (losers.stream().anyMatch(y -> !players.contains(y))) {
+                throw new RuntimeException("Invalid losers, must be one of players");
+            }
         }
     }
 }
