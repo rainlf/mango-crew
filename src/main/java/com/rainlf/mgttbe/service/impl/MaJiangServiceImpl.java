@@ -28,8 +28,7 @@ public class MaJiangServiceImpl implements MaJiangService {
     private MaJiangGameItemManager majiangGameItemManager;
     @Autowired
     private UserService userService;
-    @Autowired
-    private Random random;
+    private final Random random = new Random();
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -147,15 +146,15 @@ public class MaJiangServiceImpl implements MaJiangService {
 
     @Override
     @ExecutionTime
-    public List<MaJiangGameLogDTO> getMaJiangGameLogs() {
-        List<MaJiangGame> games = majiangGameManager.findLastGames(100);
+    public List<MaJiangGameLogDTO> getMaJiangGameLogs(Integer limit, Integer offset) {
+        List<MaJiangGame> games = majiangGameManager.findLastGames(limit, offset);
         return buildMaJiangGameLogDTO(games);
     }
 
     @Override
     @ExecutionTime
-    public List<MaJiangGameLogDTO> getMaJiangGamesByUser(Integer userId) {
-        List<Integer> lastGameIds = majiangGameItemManager.findLastGameIdsByUserIdAndTypeIn(userId, List.of(MaJiangUserType.WINNER, MaJiangUserType.LOSER), 100);
+    public List<MaJiangGameLogDTO> getMaJiangGamesByUser(Integer userId, Integer limit, Integer offset) {
+        List<Integer> lastGameIds = majiangGameItemManager.findLastGameIdsByUserIdAndTypeIn(userId, List.of(MaJiangUserType.WINNER, MaJiangUserType.LOSER), limit,  offset);
         List<MaJiangGame> games = majiangGameManager.findByIdIn(lastGameIds);
         return buildMaJiangGameLogDTO(userId, games);
     }
@@ -278,7 +277,7 @@ public class MaJiangServiceImpl implements MaJiangService {
     public PlayersDTO getMaJiangGamePlayers() {
         PlayersDTO playersDTO = new PlayersDTO();
 
-        List<MaJiangGame> maJiangGames = majiangGameManager.findLastGames(1);
+        List<MaJiangGame> maJiangGames = majiangGameManager.findLastGames(1, 0);
         if (maJiangGames.isEmpty()) {
             playersDTO.setCurrentPlayers(new ArrayList<>());
         } else {

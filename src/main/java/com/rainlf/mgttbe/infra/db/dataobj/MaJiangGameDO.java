@@ -19,8 +19,8 @@ public class MaJiangGameDO {
     private Integer player4;
     private Integer isDeleted;
 
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null")
     private LocalDateTime createdTime;
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP")
     private LocalDateTime updatedTime;
 }

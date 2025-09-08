@@ -9,9 +9,9 @@ import java.util.List;
 public interface MaJiangService {
     Integer saveMaJiangGame(SaveMaJiangGameRequest request);
 
-    List<MaJiangGameLogDTO> getMaJiangGameLogs();
+    List<MaJiangGameLogDTO> getMaJiangGameLogs(Integer limit, Integer offset);
 
-    List<MaJiangGameLogDTO> getMaJiangGamesByUser(Integer userId);
+    List<MaJiangGameLogDTO> getMaJiangGamesByUser(Integer userId, Integer limit, Integer offset);
 
     void deleteMaJiangGame(Integer id, Integer userId);
 

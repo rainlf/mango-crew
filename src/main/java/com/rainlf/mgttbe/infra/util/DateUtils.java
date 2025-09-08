@@ -12,6 +12,9 @@ public class DateUtils {
     }
 
     public static String formatDateTime(LocalDateTime localDateTime) {
+        if (localDateTime == null) {
+            return "";
+        }
         return localDateTime.format(formatter);
     }
 }

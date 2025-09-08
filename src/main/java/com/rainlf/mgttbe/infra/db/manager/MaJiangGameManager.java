@@ -7,6 +7,10 @@ import com.rainlf.mgttbe.model.MaJiangGame;
 import com.rainlf.mgttbe.model.MaJiangGameType;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Example;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,8 +40,22 @@ public class MaJiangGameManager {
     }
 
     @ExecutionTime
-    public List<MaJiangGame> findLastGames(Integer limit) {
-        return majiangGameRepository.findLastGames(limit)
+    public List<MaJiangGame> findLastGames(Integer limit, Integer offset) {
+        MaJiangGameDO maJiangGameDO = new MaJiangGameDO();
+        maJiangGameDO.setIsDeleted(0);
+
+        // 确保limit和offset不为null，设置默认值
+        int pageSize = limit != null ? limit : 10;
+        int pageOffset = offset != null ? offset : 0;
+        
+        // 计算页码，确保不会出现负数
+        int page = Math.max(0, pageOffset / pageSize);
+        
+        // 创建分页请求，按创建时间倒序排列
+        Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "createdTime"));
+
+        // 使用Example查询未删除的记录并分页
+        return majiangGameRepository.findAll(Example.of(maJiangGameDO), pageable)
                 .stream()
                 .map(this::toMaJiangGame)
                 .collect(Collectors.toList());

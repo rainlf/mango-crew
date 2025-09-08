@@ -55,7 +55,7 @@ public class UserController {
     }
 
     @GetMapping("/info")
-    public ApiResponse<UserDTO> updateUserInfo(@RequestParam("userId") Integer userId) {
+    public ApiResponse<UserDTO> getUserInfo(@RequestParam("userId") Integer userId) {
         User user = userService.findUserById(userId);
         return ApiResponse.success(UserDTO.fromUser(user));
     }

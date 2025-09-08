@@ -26,7 +26,7 @@ public interface MaJiangGameRepository extends JpaRepository<MaJiangGameDO, Inte
     List<MaJiangGameDO> findLastGamesByUser(@Param("userId") Integer userId, @Param("limit") Integer limit);
 
 
-    @Query(value = "select * from mgtt_majiang_game m where (m.player1 = :userId or  m.player2 = :userId or  m.player3 = :userId or  m.player4 = :userId) and m.is_deleted = 0 and created_time > date_sub(current_date, interval  10 day) order by m.created_time desc", nativeQuery = true)
+    @Query(value = "select * from mgtt_majiang_game m where (m.player1 = :userId or m.player2 = :userId or m.player3 = :userId or m.player4 = :userId) and m.is_deleted = 0 and m.created_time > DATE_SUB(CURRENT_DATE(), INTERVAL :days DAY) order by m.created_time desc", nativeQuery = true)
     List<MaJiangGameDO> findLastGamesByUserAndDays(@Param("userId") Integer userId, @Param("days") Integer days);
 
 }

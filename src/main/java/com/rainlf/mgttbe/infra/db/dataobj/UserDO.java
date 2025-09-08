@@ -15,15 +15,17 @@ public class UserDO {
     private Integer id;
 
     private String username;
+    private Integer points;
+    private String realName;
+    @Lob
     private byte[] avatar;
     private String openId;
     private String sessionKey;
-    private Integer points;
     private Integer isDeleted;
     private LocalDateTime lastLoginTime;
 
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null")
     private LocalDateTime createdTime;
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP")
     private LocalDateTime updatedTime;
 }

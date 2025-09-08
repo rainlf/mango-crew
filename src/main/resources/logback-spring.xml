@@ -6,6 +6,7 @@
     <!-- 控制台输出 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
+            <charset>UTF-8</charset>
             <pattern>${LOG_PATTERN}{cyan}</pattern>
         </encoder>
     </appender>
@@ -14,6 +15,20 @@
     <!-- 定义自定义 Appender -->
     <appender name="CUSTOM" class="com.rainlf.mgttbe.infra.log.DbLogAppender">
     </appender>
+
+    <!-- Hibernate 日志配置 - 降低输出级别以减少日志量 -->
+    <logger name="org.hibernate" level="WARN" />
+    <!-- SQL相关日志控制 - 根据需要调整 -->
+    <logger name="org.hibernate.SQL" level="WARN" />
+    <logger name="org.hibernate.type.descriptor.sql" level="ERROR" />
+    <logger name="org.hibernate.tool.hbm2ddl" level="WARN" />
+    <logger name="org.hibernate.cache" level="WARN" />
+    
+    <!-- JPA 相关日志 -->
+    <logger name="org.springframework.orm.jpa" level="WARN" />
+    
+    <!-- 数据库连接池日志 -->
+    <logger name="com.zaxxer.hikari" level="WARN" />
 
     <!-- 根日志配置 -->
     <root level="info">

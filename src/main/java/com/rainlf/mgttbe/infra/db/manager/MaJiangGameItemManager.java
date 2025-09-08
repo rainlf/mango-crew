@@ -63,8 +63,8 @@ public class MaJiangGameItemManager {
     }
 
     @ExecutionTime
-    public List<Integer> findLastGameIdsByUserIdAndTypeIn(Integer userId, List<MaJiangUserType> types,  Integer limit) {
-        return majiangGameItemRepository.findLastGameIdsByUserIdAndTypeIn(userId, types.stream().map(MaJiangUserType::getCode).toList(), limit);
+    public List<Integer> findLastGameIdsByUserIdAndTypeIn(Integer userId, List<MaJiangUserType> types,  Integer limit, Integer offset) {
+        return majiangGameItemRepository.findLastGameIdsByUserIdAndTypeIn(userId, types.stream().map(MaJiangUserType::getCode).toList(), limit,  offset);
     }
 
     private MaJiangGameItem toMaJiangGameItem(MaJiangGameItemDO majiangGameItemDO) {

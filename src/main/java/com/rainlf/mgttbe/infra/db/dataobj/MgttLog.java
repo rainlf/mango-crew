@@ -16,10 +16,11 @@ public class MgttLog {
     private String level;
     private String thread;
     private String message;
+    @Column(name = "stack_trace")
     private String stackTrace;
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null")
     private LocalDateTime createdTime;
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP")
     private LocalDateTime updatedTime;
     @Column(name = "biz_id")
     private String bizId;

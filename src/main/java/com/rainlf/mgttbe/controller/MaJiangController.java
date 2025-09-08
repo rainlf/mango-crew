@@ -24,8 +24,10 @@ public class MaJiangController {
 
     @GetMapping("/games")
     @ExecutionTime
-    public ApiResponse<List<MaJiangGameLogDTO>> getMaJiangGames() {
-        List<MaJiangGameLogDTO> result = majiangService.getMaJiangGameLogs();
+    public ApiResponse<List<MaJiangGameLogDTO>> getMaJiangGames(
+            @RequestParam(value = "limit", required = false, defaultValue = "10") Integer limit,
+            @RequestParam(value = "offset", required = false, defaultValue = "0") Integer offset) {
+        List<MaJiangGameLogDTO> result = majiangService.getMaJiangGameLogs(limit, offset);
         result.forEach(x -> {
             x.getPlayer1().setAvatar(null);
             x.getPlayer2().setAvatar(null);
@@ -39,8 +41,11 @@ public class MaJiangController {
 
     @GetMapping("/user/games")
     @ExecutionTime
-    public ApiResponse<List<MaJiangGameLogDTO>> getMaJiangGamesByUser(@RequestParam("userId") Integer userId) {
-        List<MaJiangGameLogDTO> result = majiangService.getMaJiangGamesByUser(userId);
+    public ApiResponse<List<MaJiangGameLogDTO>> getMaJiangGamesByUser
+            (@RequestParam("userId") Integer userId,
+             @RequestParam(value = "limit", required = false, defaultValue = "10") Integer limit,
+             @RequestParam(value = "offset", required = false, defaultValue = "0") Integer offset) {
+        List<MaJiangGameLogDTO> result = majiangService.getMaJiangGamesByUser(userId, limit, offset);
         result.forEach(x -> {
             x.getPlayer1().setAvatar(null);
             x.getPlayer2().setAvatar(null);

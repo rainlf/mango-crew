@@ -20,8 +20,8 @@ public class MaJiangGameItemDO {
     private Integer multi;
     private Integer points;
 
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null")
     private LocalDateTime createdTime;
-    @Column(insertable = false, updatable = false)
+    @Column(insertable = false, updatable = false, columnDefinition = "datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP")
     private LocalDateTime updatedTime;
 }
