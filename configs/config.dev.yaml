@@ -1,0 +1,22 @@
+server:
+  port: 8080
+  mode: debug
+
+database:
+  host: 192.168.1.113
+  port: 3306
+  username: root
+  password: 123456
+  database: mgtt
+  max_idle_conns: 10
+  max_open_conns: 100
+
+log:
+  level: debug
+  format: console
+  output: stdout
+
+wechat:
+  app_id: your_app_id
+  app_secret: your_app_secret
+  login_url: https://api.weixin.qq.com/sns/jscode2session
