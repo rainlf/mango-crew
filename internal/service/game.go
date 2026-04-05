@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rainlf/mgtt-go/internal/model"
-	"github.com/rainlf/mgtt-go/internal/repository"
-	"github.com/rainlf/mgtt-go/pkg/logger"
+	"github.com/rainlf/mango-crew/internal/model"
+	"github.com/rainlf/mango-crew/internal/repository"
+	"github.com/rainlf/mango-crew/pkg/logger"
 )
 
 // GameService 游戏服务接口

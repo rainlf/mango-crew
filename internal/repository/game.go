@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/rainlf/mgtt-go/internal/model"
+	"github.com/rainlf/mango-crew/internal/model"
 	"gorm.io/gorm"
 )
 

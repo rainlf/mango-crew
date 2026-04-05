@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# MGTT-Go 启动脚本
+# Mango Crew 启动脚本
 
 # 设置环境变量
 export GO_ENV=production
@@ -19,9 +19,9 @@ if [ ! -f "configs/config.yaml" ]; then
 fi
 
 # 检查可执行文件
-if [ ! -f "mgtt-go" ]; then
-    echo "Building mgtt-go..."
-    go build -o mgtt-go cmd/main.go
+if [ ! -f "mango-crew" ]; then
+    echo "Building mango-crew..."
+    go build -o mango-crew cmd/main.go
     if [ $? -ne 0 ]; then
         echo "Build failed"
         exit 1
@@ -29,5 +29,5 @@ if [ ! -f "mgtt-go" ]; then
 fi
 
 # 启动服务
-echo "Starting MGTT-Go server..."
-./mgtt-go
+echo "Starting Mango Crew server..."
+./mango-crew

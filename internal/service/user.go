@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rainlf/mgtt-go/internal/config"
-	"github.com/rainlf/mgtt-go/internal/model"
-	"github.com/rainlf/mgtt-go/internal/repository"
-	"github.com/rainlf/mgtt-go/pkg/logger"
+	"github.com/rainlf/mango-crew/internal/config"
+	"github.com/rainlf/mango-crew/internal/model"
+	"github.com/rainlf/mango-crew/internal/repository"
+	"github.com/rainlf/mango-crew/pkg/logger"
 )
 
 // UserService 用户服务接口

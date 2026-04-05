@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rainlf/mgtt-go/pkg/logger"
+	"github.com/rainlf/mango-crew/pkg/logger"
 )
 
 // Logger 日志中间件

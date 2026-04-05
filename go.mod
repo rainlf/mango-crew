@@ -1,4 +1,4 @@
-module github.com/rainlf/mgtt-go
+module github.com/rainlf/mango-crew
 
 go 1.23
 

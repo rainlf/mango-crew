@@ -4,10 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rainlf/mgtt-go/internal/model"
-	"github.com/rainlf/mgtt-go/internal/service"
-	"github.com/rainlf/mgtt-go/pkg/logger"
-	"github.com/rainlf/mgtt-go/pkg/response"
+	"github.com/rainlf/mango-crew/internal/model"
+	"github.com/rainlf/mango-crew/internal/service"
+	"github.com/rainlf/mango-crew/pkg/logger"
+	"github.com/rainlf/mango-crew/pkg/response"
 )
 
 // UserHandler 用户处理器
