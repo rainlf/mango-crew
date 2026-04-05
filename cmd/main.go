@@ -44,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger.Info("Starting MGTT Go server...")
+	logger.Info("Starting Mango Crew server...")
 
 	// 连接数据库
 	db, err := initDB(cfg.Database)
@@ -59,11 +59,12 @@ func main() {
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
+	sessionRepo := repository.NewGameSessionRepository(db)
 	gameRepo := repository.NewGameRepository(db)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, gameRepo, cfg.Wechat)
-	gameService := service.NewGameService(userRepo, gameRepo)
+	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
 
 	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService)
@@ -142,7 +143,10 @@ func initDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
-		&model.MaJiangGame{},
-		&model.MaJiangGameItem{},
+		&model.GameSession{},
+		&model.Game{},
+		&model.GamePlayer{},
+		&model.GamePlayerWinType{},
+		&model.WinType{},
 	)
 }

@@ -4,23 +4,17 @@ import (
 	"time"
 )
 
+// User 用户模型
 type User struct {
-	ID           int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Username     string    `gorm:"size:50" json:"username"`
-	Points       int       `gorm:"default:0;not null" json:"points"`
-	RealName     string    `gorm:"size:64" json:"real_name"`
-	Avatar       []byte    `gorm:"type:blob" json:"-"`
-	OpenID       string    `gorm:"size:64;not null;uniqueIndex:open_id_idx" json:"-"`
-	SessionKey   string    `gorm:"size:64;not null" json:"-"`
-	IsDeleted    bool      `gorm:"default:false;not null" json:"-"`
-	LastLoginTime time.Time `gorm:"not null" json:"-"`
-	CreatedTime  time.Time `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_time"`
-	UpdatedTime  time.Time `gorm:"default:CURRENT_TIMESTAMP;autoUpdateTime" json:"updated_time"`
-
-	// 非数据库字段
-	LastTags []string `gorm:"-" json:"last_tags,omitempty"`
+	ID         int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Nickname   string    `gorm:"size:50" json:"nickname"`
+	AvatarURL  string    `gorm:"size:255" json:"avatar_url"`
+	OpenID     string    `gorm:"size:64;not null;uniqueIndex:idx_open_id" json:"-"`
+	SessionKey string    `gorm:"size:64;not null" json:"-"`
+	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`
+	UpdatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP;autoUpdateTime" json:"updated_at"`
 }
 
 func (User) TableName() string {
-	return "mgtt_user"
+	return "user"
 }

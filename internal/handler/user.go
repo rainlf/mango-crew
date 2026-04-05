@@ -35,7 +35,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, (&model.UserDTO{}).FromUser(user))
+	response.Success(c, gin.H{
+		"user_id": user.ID,
+	})
 }
 
 // GetUserInfo 获取用户信息
@@ -58,24 +60,14 @@ func (h *UserHandler) GetUserInfo(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, (&model.UserDTO{}).FromUser(user))
+	response.Success(c, user)
 }
 
-// UpdateUserInfo 更新用户信息（包含头像）
-func (h *UserHandler) UpdateUserInfo(c *gin.Context) {
+// UpdateUser 更新用户信息
+func (h *UserHandler) UpdateUser(c *gin.Context) {
 	userIDStr := c.PostForm("userId")
-	username := c.PostForm("username")
-
 	if userIDStr == "" {
 		response.BadRequest(c, "userId不能为空")
-		return
-	}
-	if username == "" {
-		response.BadRequest(c, "username不能为空")
-		return
-	}
-	if len(username) > 16 {
-		response.BadRequest(c, "username长度不能超过16")
 		return
 	}
 
@@ -85,63 +77,19 @@ func (h *UserHandler) UpdateUserInfo(c *gin.Context) {
 		return
 	}
 
-	// 获取头像文件
-	file, err := c.FormFile("avatar")
-	if err != nil {
-		response.BadRequest(c, "avatar不能为空")
-		return
+	req := &model.UpdateUserRequest{
+		Nickname: c.PostForm("nickname"),
+		Avatar:   c.PostForm("avatar"),
 	}
 
-	f, err := file.Open()
+	user, err := h.userService.UpdateUser(c.Request.Context(), userID, req)
 	if err != nil {
-		response.InternalError(c, "读取头像失败")
-		return
-	}
-	defer f.Close()
-
-	avatar := make([]byte, file.Size)
-	if _, err := f.Read(avatar); err != nil {
-		response.InternalError(c, "读取头像失败")
-		return
-	}
-
-	user, err := h.userService.UpdateUserInfo(c.Request.Context(), userID, username, avatar)
-	if err != nil {
-		logger.Error("update user info failed", logger.Err(err))
+		logger.Error("update user failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
 
 	response.Success(c, (&model.UserDTO{}).FromUser(user))
-}
-
-// UpdateUsername 更新用户名
-func (h *UserHandler) UpdateUsername(c *gin.Context) {
-	userIDStr := c.PostForm("userId")
-	username := c.PostForm("username")
-
-	if userIDStr == "" {
-		response.BadRequest(c, "userId不能为空")
-		return
-	}
-	if username == "" {
-		response.BadRequest(c, "username不能为空")
-		return
-	}
-
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		response.BadRequest(c, "userId格式错误")
-		return
-	}
-
-	if err := h.userService.UpdateUsername(c.Request.Context(), userID, username); err != nil {
-		logger.Error("update username failed", logger.Err(err))
-		response.Error(c, 1, err.Error())
-		return
-	}
-
-	response.Success(c, nil)
 }
 
 // GetUserRank 获取用户排名
@@ -153,12 +101,19 @@ func (h *UserHandler) GetUserRank(c *gin.Context) {
 		return
 	}
 
-	dtos := make([]*model.UserDTO, 0, len(users))
-	for _, user := range users {
-		dtos = append(dtos, (&model.UserDTO{}).FromUser(user))
+	response.Success(c, users)
+}
+
+// GetAllUsers 获取所有用户
+func (h *UserHandler) GetAllUsers(c *gin.Context) {
+	users, err := h.userService.GetAllUsers(c.Request.Context())
+	if err != nil {
+		logger.Error("get all users failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
 	}
 
-	response.Success(c, dtos)
+	response.Success(c, users)
 }
 
 // RegisterUserRoutes 注册用户路由
@@ -167,8 +122,8 @@ func RegisterUserRoutes(r *gin.RouterGroup, handler *UserHandler) {
 	{
 		userGroup.GET("/login", handler.Login)
 		userGroup.GET("/info", handler.GetUserInfo)
-		userGroup.POST("/info", handler.UpdateUserInfo)
-		userGroup.POST("/username", handler.UpdateUsername)
+		userGroup.POST("/update", handler.UpdateUser)
 		userGroup.GET("/rank", handler.GetUserRank)
+		userGroup.GET("/list", handler.GetAllUsers)
 	}
 }

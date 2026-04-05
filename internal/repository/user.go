@@ -14,7 +14,6 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id int) (*model.User, error)
 	FindByOpenID(ctx context.Context, openID string) (*model.User, error)
 	FindAll(ctx context.Context) ([]*model.User, error)
-	UpdatePoints(ctx context.Context, userID int, points int) error
 }
 
 // userRepository 用户数据访问实现
@@ -58,12 +57,6 @@ func (r *userRepository) FindByOpenID(ctx context.Context, openID string) (*mode
 
 func (r *userRepository) FindAll(ctx context.Context) ([]*model.User, error) {
 	var users []*model.User
-	err := r.db.WithContext(ctx).Where("is_deleted = ?", false).Find(&users).Error
+	err := r.db.WithContext(ctx).Find(&users).Error
 	return users, err
-}
-
-func (r *userRepository) UpdatePoints(ctx context.Context, userID int, points int) error {
-	return r.db.WithContext(ctx).Model(&model.User{}).
-		Where("id = ?", userID).
-		UpdateColumn("points", gorm.Expr("points + ?", points)).Error
 }
