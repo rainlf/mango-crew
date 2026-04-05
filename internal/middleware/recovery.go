@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/rainlf/mgtt-go/pkg/logger"
 	"github.com/rainlf/mgtt-go/pkg/response"

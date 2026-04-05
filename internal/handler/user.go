@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +30,7 @@ func (h *UserHandler) Login(c *gin.Context) {
 
 	user, err := h.userService.Login(c.Request.Context(), code)
 	if err != nil {
-		logger.Error("login failed", logger.Error(err))
+		logger.Error("login failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -108,7 +107,7 @@ func (h *UserHandler) UpdateUserInfo(c *gin.Context) {
 
 	user, err := h.userService.UpdateUserInfo(c.Request.Context(), userID, username, avatar)
 	if err != nil {
-		logger.Error("update user info failed", logger.Error(err))
+		logger.Error("update user info failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -137,7 +136,7 @@ func (h *UserHandler) UpdateUsername(c *gin.Context) {
 	}
 
 	if err := h.userService.UpdateUsername(c.Request.Context(), userID, username); err != nil {
-		logger.Error("update username failed", logger.Error(err))
+		logger.Error("update username failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -149,7 +148,7 @@ func (h *UserHandler) UpdateUsername(c *gin.Context) {
 func (h *UserHandler) GetUserRank(c *gin.Context) {
 	users, err := h.userService.GetUserRank(c.Request.Context())
 	if err != nil {
-		logger.Error("get user rank failed", logger.Error(err))
+		logger.Error("get user rank failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}

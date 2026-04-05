@@ -130,7 +130,7 @@ func (s *gameService) SaveMaJiangGame(ctx context.Context, req *model.SaveMaJian
 	// 更新用户积分
 	for _, item := range allItems {
 		if err := s.userRepo.UpdatePoints(ctx, item.UserID, item.Points); err != nil {
-			logger.Error("update user points failed", logger.Error(err), logger.Int("user_id", item.UserID))
+			logger.Error("update user points failed", logger.Err(err), logger.Int("user_id", item.UserID))
 		}
 		user, _ := s.userRepo.FindByID(ctx, item.UserID)
 		if user != nil {
@@ -348,7 +348,7 @@ func (s *gameService) DeleteMaJiangGame(ctx context.Context, gameID, userID int)
 
 	for _, item := range items {
 		if err := s.userRepo.UpdatePoints(ctx, item.UserID, -item.Points); err != nil {
-			logger.Error("rollback user points failed", logger.Error(err))
+			logger.Error("rollback user points failed", logger.Err(err))
 		}
 		user, _ := s.userRepo.FindByID(ctx, item.UserID)
 		if user != nil {

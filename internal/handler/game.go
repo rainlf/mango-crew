@@ -38,7 +38,7 @@ func (h *GameHandler) GetMaJiangGames(c *gin.Context) {
 
 	logs, err := h.gameService.GetMaJiangGameLogs(c.Request.Context(), limit, offset)
 	if err != nil {
-		logger.Error("get majiang games failed", logger.Error(err))
+		logger.Error("get majiang games failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -76,7 +76,7 @@ func (h *GameHandler) GetMaJiangGamesByUser(c *gin.Context) {
 
 	logs, err := h.gameService.GetMaJiangGamesByUser(c.Request.Context(), userID, limit, offset)
 	if err != nil {
-		logger.Error("get majiang games by user failed", logger.Error(err))
+		logger.Error("get majiang games by user failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -94,7 +94,7 @@ func (h *GameHandler) SaveMaJiangGame(c *gin.Context) {
 
 	gameID, err := h.gameService.SaveMaJiangGame(c.Request.Context(), &req)
 	if err != nil {
-		logger.Error("save majiang game failed", logger.Error(err))
+		logger.Error("save majiang game failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -129,7 +129,7 @@ func (h *GameHandler) DeleteMaJiangGame(c *gin.Context) {
 	}
 
 	if err := h.gameService.DeleteMaJiangGame(c.Request.Context(), gameID, userID); err != nil {
-		logger.Error("delete majiang game failed", logger.Error(err))
+		logger.Error("delete majiang game failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}
@@ -141,7 +141,7 @@ func (h *GameHandler) DeleteMaJiangGame(c *gin.Context) {
 func (h *GameHandler) GetMaJiangGamePlayers(c *gin.Context) {
 	players, err := h.gameService.GetMaJiangGamePlayers(c.Request.Context())
 	if err != nil {
-		logger.Error("get majiang game players failed", logger.Error(err))
+		logger.Error("get majiang game players failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
 		return
 	}

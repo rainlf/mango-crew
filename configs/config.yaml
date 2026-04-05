@@ -1,12 +1,12 @@
 server:
   port: 8080
-  mode: debug
+  mode: release
 
 database:
-  host: localhost
+  host: 1Panel-mysql-I81e
   port: 3306
   username: root
-  password: 123456
+  password: mysql_zZSRc6
   database: mgtt
   max_idle_conns: 10
   max_open_conns: 100

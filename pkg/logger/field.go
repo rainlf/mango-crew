@@ -39,8 +39,8 @@ func Duration(key string, val time.Duration) Field {
 	return zap.Duration(key, val)
 }
 
-// Error 错误字段
-func Error(err error) Field {
+// Err 错误字段
+func Err(err error) Field {
 	return zap.Error(err)
 }
 

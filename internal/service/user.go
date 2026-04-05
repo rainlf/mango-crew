@@ -48,14 +48,14 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 
 	resp, err := s.httpClient.Get(url)
 	if err != nil {
-		logger.Error("wechat login request failed", logger.Error(err))
+		logger.Error("wechat login request failed", logger.Err(err))
 		return nil, fmt.Errorf("wechat login request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var wxSession model.WeixinSession
 	if err := json.NewDecoder(resp.Body).Decode(&wxSession); err != nil {
-		logger.Error("decode wechat response failed", logger.Error(err))
+		logger.Error("decode wechat response failed", logger.Err(err))
 		return nil, fmt.Errorf("decode wechat response failed: %w", err)
 	}
 
@@ -67,7 +67,7 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 	// 查找或创建用户
 	user, err := s.userRepo.FindByOpenID(ctx, wxSession.OpenID)
 	if err != nil {
-		logger.Error("find user by openid failed", logger.Error(err))
+		logger.Error("find user by openid failed", logger.Err(err))
 		return nil, err
 	}
 
@@ -81,7 +81,7 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 			Points:        0,
 		}
 		if err := s.userRepo.Create(ctx, user); err != nil {
-			logger.Error("create user failed", logger.Error(err))
+			logger.Error("create user failed", logger.Err(err))
 			return nil, err
 		}
 		logger.Info("new user registered", logger.Int("user_id", user.ID))
@@ -90,7 +90,7 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 		user.SessionKey = wxSession.SessionKey
 		user.LastLoginTime = now
 		if err := s.userRepo.Update(ctx, user); err != nil {
-			logger.Error("update user failed", logger.Error(err))
+			logger.Error("update user failed", logger.Err(err))
 			return nil, err
 		}
 		logger.Info("user login success", logger.Int("user_id", user.ID), logger.String("username", user.Username))
@@ -141,7 +141,7 @@ func (s *userService) GetUserRank(ctx context.Context) ([]*model.User, error) {
 	for _, user := range users {
 		games, err := s.gameRepo.FindLastGamesByUser(ctx, user.ID, 20)
 		if err != nil {
-			logger.Warn("find last games by user failed", logger.Error(err), logger.Int("user_id", user.ID))
+			logger.Warn("find last games by user failed", logger.Err(err), logger.Int("user_id", user.ID))
 			continue
 		}
 

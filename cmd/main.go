@@ -49,12 +49,12 @@ func main() {
 	// 连接数据库
 	db, err := initDB(cfg.Database)
 	if err != nil {
-		logger.Fatal("Failed to connect database", logger.Error(err))
+		logger.Fatal("Failed to connect database", logger.Err(err))
 	}
 
 	// 自动迁移
 	if err := autoMigrate(db); err != nil {
-		logger.Fatal("Failed to migrate database", logger.Error(err))
+		logger.Fatal("Failed to migrate database", logger.Err(err))
 	}
 
 	// 初始化仓库
@@ -96,7 +96,7 @@ func main() {
 	go func() {
 		logger.Info("Server is running", logger.Int("port", cfg.Server.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("Failed to start server", logger.Error(err))
+			logger.Fatal("Failed to start server", logger.Err(err))
 		}
 	}()
 
@@ -112,7 +112,7 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("Server forced to shutdown", logger.Error(err))
+		logger.Fatal("Server forced to shutdown", logger.Err(err))
 	}
 
 	logger.Info("Server exited")

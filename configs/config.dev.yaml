@@ -6,7 +6,7 @@ database:
   host: 192.168.1.113
   port: 3306
   username: root
-  password: 123456
+  password: mysql_zZSRc6
   database: mgtt
   max_idle_conns: 10
   max_open_conns: 100
