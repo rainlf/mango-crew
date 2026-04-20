@@ -12,8 +12,8 @@ type User struct {
 	Remark     string    `gorm:"size:200" json:"remark"` // 备注
 	OpenID     string    `gorm:"size:64;not null;uniqueIndex:idx_open_id" json:"-"`
 	SessionKey string    `gorm:"size:64;not null" json:"-"`
-	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`
-	UpdatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP;autoUpdateTime" json:"updated_at"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime" json:"created_at"`
+	UpdatedAt  time.Time `gorm:"not null;autoUpdateTime" json:"updated_at"`
 }
 
 func (User) TableName() string {

@@ -71,7 +71,7 @@ type Game struct {
 	Status    GameStatus `gorm:"default:0;not null" json:"status"`
 	Remark    string     `gorm:"size:200" json:"remark"`
 	CreatedBy int        `gorm:"not null" json:"created_by"`
-	CreatedAt time.Time  `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`
+	CreatedAt time.Time  `gorm:"not null;autoCreateTime" json:"created_at"`
 	SettledAt *time.Time `json:"settled_at,omitempty"`
 }
 

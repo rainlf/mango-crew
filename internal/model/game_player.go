@@ -36,8 +36,8 @@ type GamePlayer struct {
 	BasePoints  int        `gorm:"default:0" json:"base_points"`  // 基础分
 	FinalPoints int        `gorm:"default:0" json:"final_points"` // 最终分数
 	IsSettled   bool       `gorm:"default:false;not null" json:"is_settled"`
-	CreatedAt   time.Time  `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`
-	UpdatedAt   time.Time  `gorm:"default:CURRENT_TIMESTAMP;autoUpdateTime" json:"updated_at"`
+	CreatedAt   time.Time  `gorm:"not null;autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time  `gorm:"not null;autoUpdateTime" json:"updated_at"`
 
 	// 关联
 	WinTypes []*GamePlayerWinType `gorm:"-" json:"win_types,omitempty"`

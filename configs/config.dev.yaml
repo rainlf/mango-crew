@@ -3,11 +3,11 @@ server:
   mode: debug
 
 database:
-  host: 192.168.1.113
+  host: 10.199.203.199
   port: 3306
-  username: root
-  password: mysql_zZSRc6
-  database: mgtt
+  username: mango_crew
+  password: GNeAnc5ZrsQa3xbj
+  database: mango_crew
   max_idle_conns: 10
   max_open_conns: 100
 

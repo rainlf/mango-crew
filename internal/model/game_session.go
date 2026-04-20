@@ -10,7 +10,7 @@ type GameSession struct {
 	Name      string     `gorm:"size:100" json:"name"`             // 场次名称，如"周五晚场"
 	Status    int        `gorm:"default:0;not null" json:"status"` // 0:进行中 1:已结束
 	CreatedBy int        `gorm:"not null" json:"created_by"`
-	CreatedAt time.Time  `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`
+	CreatedAt time.Time  `gorm:"not null;autoCreateTime" json:"created_at"`
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
 
