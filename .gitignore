@@ -6,6 +6,8 @@
 *.dylib
 mgtt-go
 mgtt-go-*
+mango-crew
+mango-crew-*
 
 # Test binary, built with `go test -c`
 *.test

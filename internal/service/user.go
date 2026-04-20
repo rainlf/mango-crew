@@ -29,22 +29,26 @@ type userService struct {
 	gameRepo   repository.GameRepository
 	httpClient *http.Client
 	wxConfig   config.WechatConfig
+	appID      string
+	appSecret  string
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, wxConfig config.WechatConfig) UserService {
+func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, wxConfig config.WechatConfig, appID, appSecret string) UserService {
 	return &userService{
 		userRepo:   userRepo,
 		gameRepo:   gameRepo,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		wxConfig:   wxConfig,
+		appID:      appID,
+		appSecret:  appSecret,
 	}
 }
 
 func (s *userService) Login(ctx context.Context, code string) (*model.User, error) {
 	// 调用微信接口获取 openid 和 session_key
 	url := fmt.Sprintf("%s?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
-		s.wxConfig.LoginURL, s.wxConfig.AppID, s.wxConfig.AppSecret, code)
+		s.wxConfig.LoginURL, s.appID, s.appSecret, code)
 
 	resp, err := s.httpClient.Get(url)
 	if err != nil {

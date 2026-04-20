@@ -177,9 +177,14 @@ log:
   output: stdout         # 日志输出: stdout/file_path
 
 wechat:
-  app_id: your_app_id           # 微信小程序 AppID
-  app_secret: your_app_secret   # 微信小程序 AppSecret
   login_url: https://api.weixin.qq.com/sns/jscode2session  # 微信登录接口
+```
+
+环境变量：
+
+```bash
+export WECHAT_APP_ID=your_app_id
+export WECHAT_APP_SECRET=your_app_secret
 ```
 
 ## 🧪 测试

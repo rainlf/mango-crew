@@ -9,6 +9,7 @@ type User struct {
 	ID         int       `gorm:"primaryKey;autoIncrement" json:"id"`
 	Nickname   string    `gorm:"size:50" json:"nickname"`
 	AvatarURL  string    `gorm:"size:255" json:"avatar_url"`
+	Remark     string    `gorm:"size:200" json:"remark"` // 备注
 	OpenID     string    `gorm:"size:64;not null;uniqueIndex:idx_open_id" json:"-"`
 	SessionKey string    `gorm:"size:64;not null" json:"-"`
 	CreatedAt  time.Time `gorm:"default:CURRENT_TIMESTAMP;not null" json:"created_at"`

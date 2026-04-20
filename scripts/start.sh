@@ -18,16 +18,11 @@ if [ ! -f "configs/config.yaml" ]; then
     exit 1
 fi
 
-# 检查可执行文件
-if [ ! -f "mango-crew" ]; then
-    echo "Building mango-crew..."
-    go build -o mango-crew cmd/main.go
-    if [ $? -ne 0 ]; then
-        echo "Build failed"
-        exit 1
-    fi
+# 构建 Linux amd64 二进制文件（适用于 Ubuntu 服务器）
+echo "Building mango-crew for Linux amd64..."
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o mango-crew cmd/main.go
+if [ $? -ne 0 ]; then
+    echo "Build failed"
+    exit 1
 fi
-
-# 启动服务
-echo "Starting Mango Crew server..."
-./mango-crew
+echo "Build success: mango-crew"

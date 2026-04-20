@@ -35,9 +35,7 @@ type LogConfig struct {
 }
 
 type WechatConfig struct {
-	AppID     string `mapstructure:"app_id"`
-	AppSecret string `mapstructure:"app_secret"`
-	LoginURL  string `mapstructure:"login_url"`
+	LoginURL string `mapstructure:"login_url"`
 }
 
 func Load(path string) (*Config, error) {

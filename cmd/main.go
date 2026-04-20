@@ -38,6 +38,13 @@ func main() {
 
 	fmt.Printf("✅ 配置文件加载成功: %s\n", configPath)
 
+	wechatAppID := os.Getenv("WECHAT_APP_ID")
+	wechatAppSecret := os.Getenv("WECHAT_APP_SECRET")
+	if wechatAppID == "" || wechatAppSecret == "" {
+		fmt.Println("WECHAT_APP_ID and WECHAT_APP_SECRET must be set")
+		os.Exit(1)
+	}
+
 	// 初始化日志
 	if err := logger.Init(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output); err != nil {
 		fmt.Printf("Failed to init logger: %v\n", err)
@@ -63,10 +70,11 @@ func main() {
 	gameRepo := repository.NewGameRepository(db)
 
 	// 初始化服务
-	userService := service.NewUserService(userRepo, gameRepo, cfg.Wechat)
+	userService := service.NewUserService(userRepo, gameRepo, cfg.Wechat, wechatAppID, wechatAppSecret)
 	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
 
 	// 初始化处理器
+	healthHandler := handler.NewHealthHandler()
 	userHandler := handler.NewUserHandler(userService)
 	gameHandler := handler.NewGameHandler(gameService)
 
@@ -78,6 +86,7 @@ func main() {
 	r.Use(middleware.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())
+	r.GET("/health", healthHandler.Health)
 
 	// 注册路由
 	api := r.Group("/api")
