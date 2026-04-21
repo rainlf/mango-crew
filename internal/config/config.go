@@ -11,6 +11,7 @@ type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	Log      LogConfig      `mapstructure:"log"`
 	Wechat   WechatConfig   `mapstructure:"wechat"`
+	Storage  StorageConfig  `mapstructure:"storage"`
 }
 
 type ServerConfig struct {
@@ -38,8 +39,13 @@ type WechatConfig struct {
 	LoginURL string `mapstructure:"login_url"`
 }
 
+type StorageConfig struct {
+	UploadDir string `mapstructure:"upload_dir"`
+}
+
 func Load(path string) (*Config, error) {
 	viper.SetConfigFile(path)
+	viper.SetDefault("storage.upload_dir", "./uploads")
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

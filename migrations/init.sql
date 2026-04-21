@@ -48,13 +48,25 @@ CREATE TABLE IF NOT EXISTS `game` (
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏记录表';
 
+-- 当前牌桌玩家表
+CREATE TABLE IF NOT EXISTS `session_player` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
+    `session_id` INT UNSIGNED NOT NULL COMMENT '场次ID',
+    `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
+    `seat` TINYINT NOT NULL COMMENT '当前位置 1-4',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
+    KEY `idx_session_player_session` (`session_id`),
+    KEY `idx_session_player_user` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='当前牌桌玩家表';
+
 -- 游戏玩家表
 CREATE TABLE IF NOT EXISTS `game_player` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
     `game_id` INT UNSIGNED NOT NULL COMMENT '游戏ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
     `seat` TINYINT NOT NULL COMMENT '座位号 1-4',
-    `role` TINYINT NOT NULL COMMENT '角色: 1-赢家 2-输家 3-记录者',
+    `role` TINYINT NOT NULL COMMENT '角色: 1-赢家 2-输家 3-记录者 4-参与者',
     `base_points` INT DEFAULT 0 COMMENT '基础分',
     `final_points` INT DEFAULT 0 COMMENT '最终分数',
     `is_settled` TINYINT(1) DEFAULT 0 NOT NULL COMMENT '是否已结算',

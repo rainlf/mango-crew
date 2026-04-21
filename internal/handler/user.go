@@ -1,7 +1,11 @@
 package handler
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rainlf/mango-crew/internal/model"
@@ -13,11 +17,15 @@ import (
 // UserHandler 用户处理器
 type UserHandler struct {
 	userService service.UserService
+	uploadDir   string
 }
 
 // NewUserHandler 创建用户处理器
-func NewUserHandler(userService service.UserService) *UserHandler {
-	return &UserHandler{userService: userService}
+func NewUserHandler(userService service.UserService, uploadDir string) *UserHandler {
+	return &UserHandler{
+		userService: userService,
+		uploadDir:   uploadDir,
+	}
 }
 
 // Login 用户登录
@@ -79,7 +87,37 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	req := &model.UpdateUserRequest{
 		Nickname: c.PostForm("nickname"),
-		Avatar:   c.PostForm("avatar"),
+	}
+
+	// 处理头像文件上传
+	file, err := c.FormFile("avatar")
+	if err != nil {
+		logger.Info("no avatar file in request", logger.String("err", err.Error()))
+	}
+	if err == nil && file != nil {
+		ext := filepath.Ext(file.Filename)
+		if ext == "" {
+			ext = ".png"
+		}
+		filename := fmt.Sprintf("%d_%d%s", userID, time.Now().UnixMilli(), ext)
+
+		// 上传根目录可配置，便于挂载到持久化存储。
+		uploadDir := filepath.Join(h.uploadDir, "avatars")
+		if err := os.MkdirAll(uploadDir, 0755); err != nil {
+			logger.Error("create upload dir failed", logger.Err(err))
+			response.Error(c, 1, "头像保存失败")
+			return
+		}
+
+		savePath := filepath.Join(uploadDir, filename)
+		logger.Info("saving avatar", logger.String("path", savePath), logger.String("filename", file.Filename))
+		if err := c.SaveUploadedFile(file, savePath); err != nil {
+			logger.Error("save avatar failed", logger.Err(err))
+			response.Error(c, 1, "头像保存失败")
+			return
+		}
+		req.Avatar = "/uploads/avatars/" + filename
+		logger.Info("avatar saved", logger.String("url", req.Avatar))
 	}
 
 	user, err := h.userService.UpdateUser(c.Request.Context(), userID, req)

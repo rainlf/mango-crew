@@ -74,7 +74,7 @@ func main() {
 	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
 
 	// 初始化处理器
-	userHandler := handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService, cfg.Storage.UploadDir)
 	gameHandler := handler.NewGameHandler(gameService)
 
 	// 设置 Gin 模式
@@ -85,6 +85,9 @@ func main() {
 	r.Use(middleware.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())
+
+	// 静态文件服务（头像等上传文件）
+	r.Static("/uploads", cfg.Storage.UploadDir)
 
 	// 注册路由
 	api := r.Group("/api")
@@ -151,6 +154,7 @@ func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
 		&model.GameSession{},
+		&model.SessionPlayer{},
 		&model.Game{},
 		&model.GamePlayer{},
 		&model.GamePlayerWinType{},

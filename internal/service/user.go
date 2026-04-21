@@ -143,11 +143,8 @@ func (s *userService) UpdateUser(ctx context.Context, userID int, req *model.Upd
 		user.Nickname = req.Nickname
 	}
 
-	// 处理头像（base64 -> URL，实际应该上传到OSS）
 	if req.Avatar != "" {
-		// 这里简化处理，实际应该上传到云存储
-		// user.AvatarURL = uploadToOSS(req.Avatar)
-		_ = req.Avatar // 占位
+		user.AvatarURL = req.Avatar
 	}
 
 	user.UpdatedAt = time.Now()

@@ -11,6 +11,7 @@ const (
 	RoleWinner   PlayerRole = 1 // 赢家
 	RoleLoser    PlayerRole = 2 // 输家
 	RoleRecorder PlayerRole = 3 // 记录者
+	RoleNeutral  PlayerRole = 4 // 参与但本局分数不变
 )
 
 func (r PlayerRole) Name() string {
@@ -21,6 +22,8 @@ func (r PlayerRole) Name() string {
 		return "输家"
 	case RoleRecorder:
 		return "记录者"
+	case RoleNeutral:
+		return "参与者"
 	default:
 		return "未知"
 	}
