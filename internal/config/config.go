@@ -40,12 +40,12 @@ type WechatConfig struct {
 }
 
 type StorageConfig struct {
-	UploadDir string `mapstructure:"upload_dir"`
+	UploadDir  string `mapstructure:"upload_dir"`
+	PublicPath string `mapstructure:"public_path"`
 }
 
 func Load(path string) (*Config, error) {
 	viper.SetConfigFile(path)
-	viper.SetDefault("storage.upload_dir", "./avatars")
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

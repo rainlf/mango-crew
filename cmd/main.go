@@ -74,7 +74,7 @@ func main() {
 	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
 
 	// 初始化处理器
-	userHandler := handler.NewUserHandler(userService, cfg.Storage.UploadDir)
+	userHandler := handler.NewUserHandler(userService, cfg.Storage.UploadDir, cfg.Storage.PublicPath)
 	gameHandler := handler.NewGameHandler(gameService)
 
 	// 设置 Gin 模式
@@ -87,7 +87,7 @@ func main() {
 	r.Use(middleware.CORS())
 
 	// 静态文件服务（头像等上传文件）
-	r.Static("/avatars", cfg.Storage.UploadDir)
+	r.Static(cfg.Storage.PublicPath, cfg.Storage.UploadDir)
 
 	// 注册路由
 	api := r.Group("/api")

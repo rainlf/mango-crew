@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,13 +19,15 @@ import (
 type UserHandler struct {
 	userService service.UserService
 	uploadDir   string
+	publicPath  string
 }
 
 // NewUserHandler 创建用户处理器
-func NewUserHandler(userService service.UserService, uploadDir string) *UserHandler {
+func NewUserHandler(userService service.UserService, uploadDir, publicPath string) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 		uploadDir:   uploadDir,
+		publicPath:  publicPath,
 	}
 }
 
@@ -116,7 +119,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			response.Error(c, 1, "头像保存失败")
 			return
 		}
-		req.Avatar = "/avatars/" + filename
+		req.Avatar = strings.TrimRight(h.publicPath, "/") + "/" + filename
 		logger.Info("avatar saved", logger.String("url", req.Avatar))
 	}
 

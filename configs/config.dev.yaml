@@ -21,3 +21,4 @@ wechat:
 
 storage:
   upload_dir: ./avatars
+  public_path: /avatars
