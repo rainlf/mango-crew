@@ -74,7 +74,6 @@ func main() {
 	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
 
 	// 初始化处理器
-	healthHandler := handler.NewHealthHandler()
 	userHandler := handler.NewUserHandler(userService)
 	gameHandler := handler.NewGameHandler(gameService)
 
@@ -86,7 +85,6 @@ func main() {
 	r.Use(middleware.Recovery())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS())
-	r.GET("/health", healthHandler.Health)
 
 	// 注册路由
 	api := r.Group("/api")

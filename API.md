@@ -72,10 +72,6 @@
 
 ## 健康检查
 
-### GET `/health`
-
-返回纯文本 `OK`。
-
 ### GET `/api/health`
 
 返回纯文本 `OK`。
