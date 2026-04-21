@@ -45,7 +45,7 @@ type StorageConfig struct {
 
 func Load(path string) (*Config, error) {
 	viper.SetConfigFile(path)
-	viper.SetDefault("storage.upload_dir", "./uploads")
+	viper.SetDefault("storage.upload_dir", "./avatars")
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

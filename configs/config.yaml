@@ -20,4 +20,4 @@ wechat:
   login_url: https://api.weixin.qq.com/sns/jscode2session
 
 storage:
-  upload_dir: ./uploads
+  upload_dir: ./avatars

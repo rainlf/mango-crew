@@ -87,7 +87,7 @@ func main() {
 	r.Use(middleware.CORS())
 
 	// 静态文件服务（头像等上传文件）
-	r.Static("/uploads", cfg.Storage.UploadDir)
+	r.Static("/avatars", cfg.Storage.UploadDir)
 
 	// 注册路由
 	api := r.Group("/api")

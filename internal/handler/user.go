@@ -101,8 +101,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		}
 		filename := fmt.Sprintf("%d_%d%s", userID, time.Now().UnixMilli(), ext)
 
-		// 上传根目录可配置，便于挂载到持久化存储。
-		uploadDir := filepath.Join(h.uploadDir, "avatars")
+		// 头像直接保存在配置的根目录下。
+		uploadDir := h.uploadDir
 		if err := os.MkdirAll(uploadDir, 0755); err != nil {
 			logger.Error("create upload dir failed", logger.Err(err))
 			response.Error(c, 1, "头像保存失败")
@@ -116,7 +116,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 			response.Error(c, 1, "头像保存失败")
 			return
 		}
-		req.Avatar = "/uploads/avatars/" + filename
+		req.Avatar = "/avatars/" + filename
 		logger.Info("avatar saved", logger.String("url", req.Avatar))
 	}
 
