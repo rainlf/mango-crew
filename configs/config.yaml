@@ -5,9 +5,9 @@ server:
 database:
   host: 1Panel-mysql-I81e
   port: 3306
-  username: root
+  username: mango_crew
   password: mysql_zZSRc6
-  database: mgtt
+  database: mango_crew
   max_idle_conns: 10
   max_open_conns: 100
 
