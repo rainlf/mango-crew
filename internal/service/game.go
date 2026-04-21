@@ -182,9 +182,9 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 		if len(p.WinTypes) > 0 {
 			player.WinTypes = make([]*model.GamePlayerWinType, 0, len(p.WinTypes))
 			for _, wtCode := range p.WinTypes {
-				if wt, ok := model.GetWinTypeByCode(wtCode); ok {
+				if wt, ok := model.ResolveWinType(wtCode); ok {
 					player.WinTypes = append(player.WinTypes, &model.GamePlayerWinType{
-						WinTypeCode: wtCode,
+						WinTypeCode: wt.Code,
 						Multiplier:  wt.BaseMulti,
 					})
 				}
@@ -527,12 +527,12 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 
 		if winner, ok := winnerMap[userID]; ok {
 			for _, wtCode := range winner.WinTypes {
-				wtInfo, found := model.GetWinTypeByCode(wtCode)
+				wtInfo, found := model.ResolveWinType(wtCode)
 				if !found {
 					return nil, fmt.Errorf("未知番型: %s", wtCode)
 				}
 				player.WinTypes = append(player.WinTypes, &model.GamePlayerWinType{
-					WinTypeCode: wtCode,
+					WinTypeCode: wtInfo.Code,
 					Multiplier:  wtInfo.BaseMulti,
 				})
 			}
@@ -681,6 +681,10 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 		// 获取玩家信息
 		players, err := s.gameRepo.FindPlayersByGameID(ctx, game.ID)
 		if err != nil {
+			continue
+		}
+		if len(players) == 0 {
+			logger.Warn("skip game without players", logger.Int("game_id", game.ID))
 			continue
 		}
 

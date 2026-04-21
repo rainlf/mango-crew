@@ -35,3 +35,21 @@ func GetWinTypeByCode(code string) (*WinType, bool) {
 	}
 	return nil, false
 }
+
+// GetWinTypeByName 根据中文名称获取番型
+func GetWinTypeByName(name string) (*WinType, bool) {
+	for _, wt := range DefaultWinTypes {
+		if wt.Name == name {
+			return wt, true
+		}
+	}
+	return nil, false
+}
+
+// ResolveWinType 支持按 code 或中文名称解析番型
+func ResolveWinType(codeOrName string) (*WinType, bool) {
+	if wt, ok := GetWinTypeByCode(codeOrName); ok {
+		return wt, true
+	}
+	return GetWinTypeByName(codeOrName)
+}
