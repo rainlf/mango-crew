@@ -18,10 +18,10 @@ type GameRepository interface {
 	SettleGame(ctx context.Context, id int) error
 	CancelGame(ctx context.Context, id int) error
 
-	// 玩家相关
-	CreatePlayers(ctx context.Context, players []*model.GamePlayer) error
-	FindPlayersByGameID(ctx context.Context, gameID int) ([]*model.GamePlayer, error)
-	FindPlayersByUserID(ctx context.Context, userID int, limit int) ([]*model.GamePlayer, error)
+	// 对局记录相关
+	CreateRecords(ctx context.Context, records []*model.GameRecord) error
+	FindRecordsByGameID(ctx context.Context, gameID int) ([]*model.GameRecord, error)
+	FindRecordsByUserID(ctx context.Context, userID int, limit int) ([]*model.GameRecord, error)
 
 	// 统计
 	CountPlayerGames(ctx context.Context, userID int) (int64, error)
@@ -72,8 +72,8 @@ func (r *gameRepository) FindGamesByUser(ctx context.Context, userID int, limit,
 	err := r.db.WithContext(ctx).
 		Model(&model.Game{}).
 		Distinct("game.*").
-		Joins("JOIN game_player ON game_player.game_id = game.id").
-		Where("game_player.user_id = ?", userID).
+		Joins("JOIN game_record ON game_record.game_id = game.id").
+		Where("game_record.user_id = ?", userID).
 		Where("game.status = ?", model.GameStatusSettled).
 		Order("game.created_at DESC").
 		Limit(limit).
@@ -93,7 +93,7 @@ func (r *gameRepository) SettleGame(ctx context.Context, id int) error {
 			}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.GamePlayer{}).
+		return tx.Model(&model.GameRecord{}).
 			Where("game_id = ?", id).
 			Update("is_settled", true).Error
 	})
@@ -105,49 +105,49 @@ func (r *gameRepository) CancelGame(ctx context.Context, id int) error {
 		Update("status", model.GameStatusCanceled).Error
 }
 
-// 玩家相关
+// 对局记录相关
 
-func (r *gameRepository) CreatePlayers(ctx context.Context, players []*model.GamePlayer) error {
-	for _, player := range players {
-		if err := player.SyncWinTypesRaw(); err != nil {
+func (r *gameRepository) CreateRecords(ctx context.Context, records []*model.GameRecord) error {
+	for _, record := range records {
+		if err := record.SyncWinTypesRaw(); err != nil {
 			return err
 		}
 	}
-	return r.db.WithContext(ctx).Create(players).Error
+	return r.db.WithContext(ctx).Create(records).Error
 }
 
-func (r *gameRepository) FindPlayersByGameID(ctx context.Context, gameID int) ([]*model.GamePlayer, error) {
-	var players []*model.GamePlayer
+func (r *gameRepository) FindRecordsByGameID(ctx context.Context, gameID int) ([]*model.GameRecord, error) {
+	var records []*model.GameRecord
 	err := r.db.WithContext(ctx).
 		Where("game_id = ?", gameID).
-		Find(&players).Error
+		Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
-	for _, player := range players {
-		if err := player.LoadWinTypesFromRaw(); err != nil {
+	for _, record := range records {
+		if err := record.LoadWinTypesFromRaw(); err != nil {
 			return nil, err
 		}
 	}
-	return players, err
+	return records, err
 }
 
-func (r *gameRepository) FindPlayersByUserID(ctx context.Context, userID int, limit int) ([]*model.GamePlayer, error) {
-	var players []*model.GamePlayer
+func (r *gameRepository) FindRecordsByUserID(ctx context.Context, userID int, limit int) ([]*model.GameRecord, error) {
+	var records []*model.GameRecord
 	err := r.db.WithContext(ctx).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(limit).
-		Find(&players).Error
+		Find(&records).Error
 	if err != nil {
 		return nil, err
 	}
-	for _, player := range players {
-		if err := player.LoadWinTypesFromRaw(); err != nil {
+	for _, record := range records {
+		if err := record.LoadWinTypesFromRaw(); err != nil {
 			return nil, err
 		}
 	}
-	return players, err
+	return records, err
 }
 
 // 统计
@@ -155,11 +155,11 @@ func (r *gameRepository) FindPlayersByUserID(ctx context.Context, userID int, li
 func (r *gameRepository) CountPlayerGames(ctx context.Context, userID int) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
-		Model(&model.GamePlayer{}).
-		Joins("JOIN game ON game.id = game_player.game_id").
-		Where("game_player.user_id = ?", userID).
+		Model(&model.GameRecord{}).
+		Joins("JOIN game ON game.id = game_record.game_id").
+		Where("game_record.user_id = ?", userID).
 		Where("game.status = ?", model.GameStatusSettled).
-		Distinct("game_player.game_id").
+		Distinct("game_record.game_id").
 		Count(&count).Error
 	return count, err
 }
@@ -167,10 +167,10 @@ func (r *gameRepository) CountPlayerGames(ctx context.Context, userID int) (int6
 func (r *gameRepository) CountPlayerWins(ctx context.Context, userID int) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
-		Model(&model.GamePlayer{}).
-		Joins("JOIN game ON game.id = game_player.game_id").
-		Where("game_player.user_id = ?", userID).
-		Where("game_player.role = ?", model.RoleWinner).
+		Model(&model.GameRecord{}).
+		Joins("JOIN game ON game.id = game_record.game_id").
+		Where("game_record.user_id = ?", userID).
+		Where("game_record.role = ?", model.RoleWinner).
 		Where("game.status = ?", model.GameStatusSettled).
 		Count(&count).Error
 	return count, err
@@ -181,10 +181,10 @@ func (r *gameRepository) SumPlayerPoints(ctx context.Context, userID int) (int, 
 		Total int
 	}
 	err := r.db.WithContext(ctx).
-		Model(&model.GamePlayer{}).
-		Joins("JOIN game ON game.id = game_player.game_id").
+		Model(&model.GameRecord{}).
+		Joins("JOIN game ON game.id = game_record.game_id").
 		Select("COALESCE(SUM(final_points), 0) as total").
-		Where("game_player.user_id = ?", userID).
+		Where("game_record.user_id = ?", userID).
 		Where("game.status = ?", model.GameStatusSettled).
 		Scan(&result).Error
 	return result.Total, err

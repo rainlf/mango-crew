@@ -34,17 +34,17 @@ CREATE TABLE IF NOT EXISTS `game` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏记录表';
 
 -- 当前牌桌玩家表
-CREATE TABLE IF NOT EXISTS `session_player` (
+CREATE TABLE IF NOT EXISTS `game_player` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
     `seat` TINYINT NOT NULL COMMENT '当前位置 1-4',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
-    KEY `idx_session_player_user` (`user_id`)
+    KEY `idx_game_player_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='当前牌桌玩家表';
 
--- 游戏玩家表
-CREATE TABLE IF NOT EXISTS `game_player` (
+-- 对局记录表
+CREATE TABLE IF NOT EXISTS `game_record` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
     `game_id` INT UNSIGNED NOT NULL COMMENT '游戏ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS `game_player` (
     `is_settled` TINYINT(1) DEFAULT 0 NOT NULL COMMENT '是否已结算',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
-    KEY `idx_game` (`game_id`),
-    KEY `idx_user` (`user_id`),
-    KEY `idx_game_user` (`game_id`, `user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏玩家表';
+    KEY `idx_game_record_game` (`game_id`),
+    KEY `idx_game_record_user` (`user_id`),
+    KEY `idx_game_record_game_user` (`game_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对局记录表';

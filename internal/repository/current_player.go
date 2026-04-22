@@ -10,7 +10,7 @@ import (
 // CurrentPlayerRepository 当前牌桌玩家数据访问接口
 type CurrentPlayerRepository interface {
 	ReplacePlayers(ctx context.Context, userIDs []int) error
-	FindPlayers(ctx context.Context) ([]*model.SessionPlayer, error)
+	FindPlayers(ctx context.Context) ([]*model.GamePlayer, error)
 }
 
 // currentPlayerRepository 当前牌桌玩家数据访问实现
@@ -25,7 +25,7 @@ func NewCurrentPlayerRepository(db *gorm.DB) CurrentPlayerRepository {
 
 func (r *currentPlayerRepository) ReplacePlayers(ctx context.Context, userIDs []int) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("1 = 1").Delete(&model.SessionPlayer{}).Error; err != nil {
+		if err := tx.Where("1 = 1").Delete(&model.GamePlayer{}).Error; err != nil {
 			return err
 		}
 
@@ -33,9 +33,9 @@ func (r *currentPlayerRepository) ReplacePlayers(ctx context.Context, userIDs []
 			return nil
 		}
 
-		players := make([]*model.SessionPlayer, 0, len(userIDs))
+		players := make([]*model.GamePlayer, 0, len(userIDs))
 		for idx, userID := range userIDs {
-			players = append(players, &model.SessionPlayer{
+			players = append(players, &model.GamePlayer{
 				UserID: userID,
 				Seat:   idx + 1,
 			})
@@ -44,8 +44,8 @@ func (r *currentPlayerRepository) ReplacePlayers(ctx context.Context, userIDs []
 	})
 }
 
-func (r *currentPlayerRepository) FindPlayers(ctx context.Context) ([]*model.SessionPlayer, error) {
-	var players []*model.SessionPlayer
+func (r *currentPlayerRepository) FindPlayers(ctx context.Context) ([]*model.GamePlayer, error) {
+	var players []*model.GamePlayer
 	err := r.db.WithContext(ctx).
 		Order("seat ASC").
 		Find(&players).Error

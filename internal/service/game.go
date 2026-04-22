@@ -82,9 +82,9 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 	}
 
 	// 创建玩家记录
-	players := make([]*model.GamePlayer, 0, len(req.Players))
+	records := make([]*model.GameRecord, 0, len(req.Players))
 	for _, p := range req.Players {
-		player := &model.GamePlayer{
+		record := &model.GameRecord{
 			GameID:     game.ID,
 			UserID:     p.UserID,
 			Seat:       p.Seat,
@@ -96,10 +96,10 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 
 		// 处理番型
 		if len(p.WinTypes) > 0 {
-			player.WinTypes = make([]*model.GamePlayerWinType, 0, len(p.WinTypes))
+			record.WinTypes = make([]*model.GameRecordWinType, 0, len(p.WinTypes))
 			for _, wtCode := range p.WinTypes {
 				if wt, ok := model.ResolveWinType(wtCode); ok {
-					player.WinTypes = append(player.WinTypes, &model.GamePlayerWinType{
+					record.WinTypes = append(record.WinTypes, &model.GameRecordWinType{
 						WinTypeCode: wt.Code,
 						Multiplier:  wt.BaseMulti,
 					})
@@ -108,24 +108,24 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 		}
 
 		// 计算最终分数
-		player.CalculatePoints()
-		players = append(players, player)
+		record.CalculatePoints()
+		records = append(records, record)
 	}
 
 	// 记录者加分逻辑
-	for _, player := range players {
-		if player.Role == model.RoleRecorder && gameType != model.YunDong {
+	for _, record := range records {
+		if record.Role == model.RoleRecorder && gameType != model.YunDong {
 			// 1% 概率加 20 分，99% 概率加 1 分
 			if s.rand.Intn(100) < 1 {
-				player.FinalPoints = 20
+				record.FinalPoints = 20
 			} else {
-				player.FinalPoints = 1
+				record.FinalPoints = 1
 			}
 		}
 	}
 
-	if err := s.gameRepo.CreatePlayers(ctx, players); err != nil {
-		return nil, fmt.Errorf("create players failed: %w", err)
+	if err := s.gameRepo.CreateRecords(ctx, records); err != nil {
+		return nil, fmt.Errorf("create game records failed: %w", err)
 	}
 
 	return game, nil
@@ -178,12 +178,12 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		return nil, fmt.Errorf("create game failed: %w", err)
 	}
 
-	players, err := s.buildRecordedPlayers(game.ID, req, currentPlayerIDs, gameType)
+	records, err := s.buildRecordedPlayers(game.ID, req, currentPlayerIDs, gameType)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.gameRepo.CreatePlayers(ctx, players); err != nil {
-		return nil, fmt.Errorf("create players failed: %w", err)
+	if err := s.gameRepo.CreateRecords(ctx, records); err != nil {
+		return nil, fmt.Errorf("create game records failed: %w", err)
 	}
 
 	return game, nil
@@ -370,7 +370,7 @@ func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequ
 	return nil
 }
 
-func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangGameRequest, currentPlayerIDs []int, gameType model.GameType) ([]*model.GamePlayer, error) {
+func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangGameRequest, currentPlayerIDs []int, gameType model.GameType) ([]*model.GameRecord, error) {
 	winnerMap := make(map[int]*model.RecordMaJiangWinnerDTO, len(req.Winners))
 	for _, winner := range req.Winners {
 		winnerMap[winner.UserID] = winner
@@ -381,8 +381,8 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 		loserSet[loserID] = struct{}{}
 	}
 
-	players := make([]*model.GamePlayer, 0, len(currentPlayerIDs))
-	playerMap := make(map[int]*model.GamePlayer, len(currentPlayerIDs))
+	records := make([]*model.GameRecord, 0, len(currentPlayerIDs))
+	recordMap := make(map[int]*model.GameRecord, len(currentPlayerIDs))
 	for idx, userID := range currentPlayerIDs {
 		// 对局参与者行只承载本局输赢分；记录者奖励分单独落一行 RoleRecorder。
 		role := model.RoleNeutral
@@ -395,7 +395,7 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 			role = model.RoleLoser
 		}
 
-		player := &model.GamePlayer{
+		record := &model.GameRecord{
 			GameID:     gameID,
 			UserID:     userID,
 			Seat:       idx + 1,
@@ -412,38 +412,38 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 				if !found {
 					return nil, fmt.Errorf("未知番型: %s", wtCode)
 				}
-				player.WinTypes = append(player.WinTypes, &model.GamePlayerWinType{
+				record.WinTypes = append(record.WinTypes, &model.GameRecordWinType{
 					WinTypeCode: wtInfo.Code,
 					Multiplier:  wtInfo.BaseMulti,
 				})
 			}
-			player.CalculatePoints()
+			record.CalculatePoints()
 		}
 
-		players = append(players, player)
-		playerMap[userID] = player
+		records = append(records, record)
+		recordMap[userID] = record
 	}
 
 	switch gameType {
 	case model.PingHu:
-		winner := playerMap[req.Winners[0].UserID]
-		loser := playerMap[req.Losers[0]]
+		winner := recordMap[req.Winners[0].UserID]
+		loser := recordMap[req.Losers[0]]
 		loser.FinalPoints = -winner.FinalPoints
 	case model.ZiMo:
-		winner := playerMap[req.Winners[0].UserID]
+		winner := recordMap[req.Winners[0].UserID]
 		singleLosePoints := winner.FinalPoints
 		winner.FinalPoints = singleLosePoints * len(req.Losers)
 		for _, loserID := range req.Losers {
-			playerMap[loserID].FinalPoints = -singleLosePoints
+			recordMap[loserID].FinalPoints = -singleLosePoints
 		}
 	case model.YiPaoShuangXiang, model.YiPaoSanXiang, model.XiangGong:
 		total := 0
 		for _, winner := range req.Winners {
-			total += playerMap[winner.UserID].FinalPoints
+			total += recordMap[winner.UserID].FinalPoints
 		}
-		playerMap[req.Losers[0]].FinalPoints = -total
+		recordMap[req.Losers[0]].FinalPoints = -total
 	case model.YunDong:
-		winner := playerMap[req.Winners[0].UserID]
+		winner := recordMap[req.Winners[0].UserID]
 		winner.FinalPoints = req.Winners[0].BasePoints
 	}
 
@@ -457,7 +457,7 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 			recorderBonus = 1
 		}
 	}
-	players = append(players, &model.GamePlayer{
+	records = append(records, &model.GameRecord{
 		GameID:      gameID,
 		UserID:      req.RecorderID,
 		Seat:        99,
@@ -469,7 +469,7 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 		UpdatedAt:   time.Now(),
 	})
 
-	return players, nil
+	return records, nil
 }
 
 func (s *gameService) loadCurrentPlayerIDs(ctx context.Context) ([]int, error) {
@@ -530,16 +530,16 @@ func (s *gameService) ensureUsersExist(ctx context.Context, userIDs []int) error
 func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([]*model.GameDTO, error) {
 	var result []*model.GameDTO
 	userIDs := make([]int, 0, len(games))
-	playersByGameID := make(map[int][]*model.GamePlayer, len(games))
+	recordsByGameID := make(map[int][]*model.GameRecord, len(games))
 	for _, game := range games {
 		userIDs = append(userIDs, game.CreatedBy)
-		players, err := s.gameRepo.FindPlayersByGameID(ctx, game.ID)
+		records, err := s.gameRepo.FindRecordsByGameID(ctx, game.ID)
 		if err != nil {
 			continue
 		}
-		playersByGameID[game.ID] = players
-		for _, player := range players {
-			userIDs = append(userIDs, player.UserID)
+		recordsByGameID[game.ID] = records
+		for _, record := range records {
+			userIDs = append(userIDs, record.UserID)
 		}
 	}
 
@@ -568,30 +568,30 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 			dto.CreatedBy = (&model.UserDTO{}).FromUser(creator)
 		}
 
-		// 获取玩家信息
-		players := playersByGameID[game.ID]
-		if len(players) == 0 {
+		// 获取对局记录信息
+		records := recordsByGameID[game.ID]
+		if len(records) == 0 {
 			logger.Warn("skip game without players", logger.Int("game_id", game.ID))
 			continue
 		}
 
-		for _, player := range players {
+		for _, record := range records {
 			playerDTO := &model.GamePlayerDTO{
-				ID:          player.ID,
-				Seat:        player.Seat,
-				Role:        player.Role.Name(),
-				RoleCode:    int(player.Role),
-				BasePoints:  player.BasePoints,
-				FinalPoints: player.FinalPoints,
+				ID:          record.ID,
+				Seat:        record.Seat,
+				Role:        record.Role.Name(),
+				RoleCode:    int(record.Role),
+				BasePoints:  record.BasePoints,
+				FinalPoints: record.FinalPoints,
 			}
 
 			// 获取用户信息
-			if user, ok := usersByID[player.UserID]; ok {
+			if user, ok := usersByID[record.UserID]; ok {
 				playerDTO.User = (&model.UserDTO{}).FromUser(user)
 			}
 
 			// 获取番型
-			for _, wt := range player.WinTypes {
+			for _, wt := range record.WinTypes {
 				if wtInfo, ok := model.GetWinTypeByCode(wt.WinTypeCode); ok {
 					playerDTO.WinTypes = append(playerDTO.WinTypes, &model.WinTypeDTO{
 						Code:       wt.WinTypeCode,

@@ -78,8 +78,8 @@ func (Game) TableName() string {
 	return "game"
 }
 
-// GameWithPlayers 游戏及其玩家信息
-type GameWithPlayers struct {
+// GameWithRecords 游戏及其对局记录信息
+type GameWithRecords struct {
 	Game    *Game
-	Players []*GamePlayer
+	Records []*GameRecord
 }

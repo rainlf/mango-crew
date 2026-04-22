@@ -153,8 +153,8 @@ func initDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
-		&model.SessionPlayer{},
 		&model.Game{},
 		&model.GamePlayer{},
+		&model.GameRecord{},
 	)
 }
