@@ -23,10 +23,6 @@ type GameRepository interface {
 	FindPlayersByGameID(ctx context.Context, gameID int) ([]*model.GamePlayer, error)
 	FindPlayersByUserID(ctx context.Context, userID int, limit int) ([]*model.GamePlayer, error)
 
-	// 番型相关
-	CreateWinTypes(ctx context.Context, winTypes []*model.GamePlayerWinType) error
-	FindWinTypesByPlayerID(ctx context.Context, playerID int) ([]*model.GamePlayerWinType, error)
-
 	// 统计
 	CountPlayerGames(ctx context.Context, userID int) (int64, error)
 	CountPlayerWins(ctx context.Context, userID int) (int64, error)
@@ -112,6 +108,11 @@ func (r *gameRepository) CancelGame(ctx context.Context, id int) error {
 // 玩家相关
 
 func (r *gameRepository) CreatePlayers(ctx context.Context, players []*model.GamePlayer) error {
+	for _, player := range players {
+		if err := player.SyncWinTypesRaw(); err != nil {
+			return err
+		}
+	}
 	return r.db.WithContext(ctx).Create(players).Error
 }
 
@@ -120,6 +121,14 @@ func (r *gameRepository) FindPlayersByGameID(ctx context.Context, gameID int) ([
 	err := r.db.WithContext(ctx).
 		Where("game_id = ?", gameID).
 		Find(&players).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, player := range players {
+		if err := player.LoadWinTypesFromRaw(); err != nil {
+			return nil, err
+		}
+	}
 	return players, err
 }
 
@@ -130,21 +139,15 @@ func (r *gameRepository) FindPlayersByUserID(ctx context.Context, userID int, li
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&players).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, player := range players {
+		if err := player.LoadWinTypesFromRaw(); err != nil {
+			return nil, err
+		}
+	}
 	return players, err
-}
-
-// 番型相关
-
-func (r *gameRepository) CreateWinTypes(ctx context.Context, winTypes []*model.GamePlayerWinType) error {
-	return r.db.WithContext(ctx).Create(winTypes).Error
-}
-
-func (r *gameRepository) FindWinTypesByPlayerID(ctx context.Context, playerID int) ([]*model.GamePlayerWinType, error) {
-	var winTypes []*model.GamePlayerWinType
-	err := r.db.WithContext(ctx).
-		Where("game_player_id = ?", playerID).
-		Find(&winTypes).Error
-	return winTypes, err
 }
 
 // 统计

@@ -128,18 +128,6 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 		return nil, fmt.Errorf("create players failed: %w", err)
 	}
 
-	// 保存番型
-	for _, player := range players {
-		if len(player.WinTypes) > 0 {
-			for _, wt := range player.WinTypes {
-				wt.GamePlayerID = player.ID
-			}
-			if err := s.gameRepo.CreateWinTypes(ctx, player.WinTypes); err != nil {
-				logger.Warn("create win types failed", logger.Err(err))
-			}
-		}
-	}
-
 	return game, nil
 }
 
@@ -196,18 +184,6 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 	}
 	if err := s.gameRepo.CreatePlayers(ctx, players); err != nil {
 		return nil, fmt.Errorf("create players failed: %w", err)
-	}
-
-	for _, player := range players {
-		if len(player.WinTypes) == 0 {
-			continue
-		}
-		for _, wt := range player.WinTypes {
-			wt.GamePlayerID = player.ID
-		}
-		if err := s.gameRepo.CreateWinTypes(ctx, player.WinTypes); err != nil {
-			logger.Warn("create win types failed", logger.Err(err))
-		}
 	}
 
 	return game, nil
@@ -615,16 +591,13 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 			}
 
 			// 获取番型
-			winTypes, err := s.gameRepo.FindWinTypesByPlayerID(ctx, player.ID)
-			if err == nil {
-				for _, wt := range winTypes {
-					if wtInfo, ok := model.GetWinTypeByCode(wt.WinTypeCode); ok {
-						playerDTO.WinTypes = append(playerDTO.WinTypes, &model.WinTypeDTO{
-							Code:       wt.WinTypeCode,
-							Name:       wtInfo.Name,
-							Multiplier: wt.Multiplier,
-						})
-					}
+			for _, wt := range player.WinTypes {
+				if wtInfo, ok := model.GetWinTypeByCode(wt.WinTypeCode); ok {
+					playerDTO.WinTypes = append(playerDTO.WinTypes, &model.WinTypeDTO{
+						Code:       wt.WinTypeCode,
+						Name:       wtInfo.Name,
+						Multiplier: wt.Multiplier,
+					})
 				}
 			}
 

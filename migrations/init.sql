@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS `game_player` (
     `role` TINYINT NOT NULL COMMENT '角色: 1-赢家 2-输家 3-记录者 4-参与者',
     `base_points` INT DEFAULT 0 COMMENT '基础分',
     `final_points` INT DEFAULT 0 COMMENT '最终分数',
+    `win_types` TEXT NULL COMMENT '赢家番型JSON，非赢家可为空',
     `is_settled` TINYINT(1) DEFAULT 0 NOT NULL COMMENT '是否已结算',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
@@ -59,16 +60,6 @@ CREATE TABLE IF NOT EXISTS `game_player` (
     KEY `idx_user` (`user_id`),
     KEY `idx_game_user` (`game_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏玩家表';
-
--- 玩家番型记录表
-CREATE TABLE IF NOT EXISTS `game_player_win_type` (
-    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
-    `game_player_id` INT UNSIGNED NOT NULL COMMENT '游戏玩家记录ID',
-    `win_type_code` VARCHAR(20) NOT NULL COMMENT '番型代码',
-    `multiplier` INT NOT NULL COMMENT '倍数',
-    KEY `idx_game_player` (`game_player_id`),
-    KEY `idx_win_type_code` (`win_type_code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='玩家番型记录表';
 
 -- 番型字典表
 CREATE TABLE IF NOT EXISTS `win_type` (

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -41,6 +42,7 @@ type GamePlayer struct {
 	IsSettled   bool       `gorm:"default:false;not null" json:"is_settled"`
 	CreatedAt   time.Time  `gorm:"not null;autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time  `gorm:"not null;autoUpdateTime" json:"updated_at"`
+	WinTypesRaw string     `gorm:"column:win_types;type:text" json:"-"`
 
 	// 关联
 	WinTypes []*GamePlayerWinType `gorm:"-" json:"win_types,omitempty"`
@@ -62,14 +64,38 @@ func (gp *GamePlayer) CalculatePoints() {
 	gp.FinalPoints = gp.BasePoints * multi
 }
 
-// GamePlayerWinType 玩家番型记录
-type GamePlayerWinType struct {
-	ID           int    `gorm:"primaryKey;autoIncrement" json:"id"`
-	GamePlayerID int    `gorm:"not null;index:idx_game_player" json:"game_player_id"`
-	WinTypeCode  string `gorm:"size:20;not null" json:"win_type_code"`
-	Multiplier   int    `gorm:"not null" json:"multiplier"`
+// SyncWinTypesRaw 将番型信息写入持久化字段
+func (gp *GamePlayer) SyncWinTypesRaw() error {
+	if len(gp.WinTypes) == 0 {
+		gp.WinTypesRaw = ""
+		return nil
+	}
+
+	data, err := json.Marshal(gp.WinTypes)
+	if err != nil {
+		return err
+	}
+	gp.WinTypesRaw = string(data)
+	return nil
 }
 
-func (GamePlayerWinType) TableName() string {
-	return "game_player_win_type"
+// LoadWinTypesFromRaw 从持久化字段恢复番型信息
+func (gp *GamePlayer) LoadWinTypesFromRaw() error {
+	if gp.WinTypesRaw == "" {
+		gp.WinTypes = nil
+		return nil
+	}
+
+	var winTypes []*GamePlayerWinType
+	if err := json.Unmarshal([]byte(gp.WinTypesRaw), &winTypes); err != nil {
+		return err
+	}
+	gp.WinTypes = winTypes
+	return nil
+}
+
+// GamePlayerWinType 玩家番型信息
+type GamePlayerWinType struct {
+	WinTypeCode string `json:"win_type_code"`
+	Multiplier  int    `json:"multiplier"`
 }
