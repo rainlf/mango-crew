@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 
+	"github.com/rainlf/mango-crew/internal/cache"
+	"github.com/rainlf/mango-crew/internal/config"
 	"github.com/rainlf/mango-crew/internal/model"
 	"github.com/rainlf/mango-crew/internal/repository"
 	"github.com/rainlf/mango-crew/pkg/logger"
@@ -31,15 +34,19 @@ type gameService struct {
 	currentPlayerRepo repository.CurrentPlayerRepository
 	gameRepo          repository.GameRepository
 	userRepo          repository.UserRepository
+	cache             *cache.Store
+	cfg               *config.Config
 	rand              *rand.Rand
 }
 
 // NewGameService 创建游戏服务实例
-func NewGameService(currentPlayerRepo repository.CurrentPlayerRepository, gameRepo repository.GameRepository, userRepo repository.UserRepository) GameService {
+func NewGameService(currentPlayerRepo repository.CurrentPlayerRepository, gameRepo repository.GameRepository, userRepo repository.UserRepository, cacheStore *cache.Store, cfg *config.Config) GameService {
 	return &gameService{
 		currentPlayerRepo: currentPlayerRepo,
 		gameRepo:          gameRepo,
 		userRepo:          userRepo,
+		cache:             cacheStore,
+		cfg:               cfg,
 		rand:              rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
@@ -55,6 +62,7 @@ func (s *gameService) UpdateCurrentPlayers(ctx context.Context, _ int, req *mode
 	if err := s.currentPlayerRepo.ReplacePlayers(ctx, userIDs); err != nil {
 		return nil, err
 	}
+	s.invalidatePlayerCaches(ctx)
 	return s.GetPlayers(ctx)
 }
 
@@ -128,6 +136,8 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 		return nil, fmt.Errorf("create game records failed: %w", err)
 	}
 
+	s.invalidateGameCaches(ctx, append(extractPlayerIDsFromCreateReq(req), userID)...)
+
 	return game, nil
 }
 
@@ -154,6 +164,7 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		if err := s.currentPlayerRepo.ReplacePlayers(ctx, currentPlayerIDs); err != nil {
 			return nil, err
 		}
+		s.invalidatePlayerCaches(ctx)
 	} else {
 		currentPlayerIDs, err = s.loadCurrentPlayerIDs(ctx)
 		if err != nil {
@@ -186,34 +197,81 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		return nil, fmt.Errorf("create game records failed: %w", err)
 	}
 
+	affectedUserIDs := append([]int{req.RecorderID}, currentPlayerIDs...)
+	s.invalidateGameCaches(ctx, affectedUserIDs...)
+
 	return game, nil
 }
 
 func (s *gameService) SettleGame(ctx context.Context, gameID int) error {
-	return s.gameRepo.SettleGame(ctx, gameID)
+	affectedUserIDs, err := s.loadGameRelatedUserIDs(ctx, gameID)
+	if err != nil {
+		logger.Warn("load game users before settle failed", logger.Int("game_id", gameID), logger.Err(err))
+	}
+	if err := s.gameRepo.SettleGame(ctx, gameID); err != nil {
+		return err
+	}
+	s.invalidateGameCaches(ctx, affectedUserIDs...)
+	return nil
 }
 
 func (s *gameService) CancelGame(ctx context.Context, gameID int) error {
-	return s.gameRepo.CancelGame(ctx, gameID)
+	affectedUserIDs, err := s.loadGameRelatedUserIDs(ctx, gameID)
+	if err != nil {
+		logger.Warn("load game users before cancel failed", logger.Int("game_id", gameID), logger.Err(err))
+	}
+	if err := s.gameRepo.CancelGame(ctx, gameID); err != nil {
+		return err
+	}
+	s.invalidateGameCaches(ctx, affectedUserIDs...)
+	return nil
 }
 
 func (s *gameService) GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error) {
+	cacheKey := s.gamesByUserCacheKey(userID, limit, offset)
+	var cached []*model.GameDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
 	games, err := s.gameRepo.FindGamesByUser(ctx, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildGameDTOs(ctx, games)
+	result, err := s.buildGameDTOs(ctx, games)
+	if err != nil {
+		return nil, err
+	}
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.GameListTTL())
+	return result, nil
 }
 
 func (s *gameService) GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error) {
+	cacheKey := s.recentGamesCacheKey(limit, offset)
+	var cached []*model.GameDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
 	games, err := s.gameRepo.FindRecentGames(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildGameDTOs(ctx, games)
+	result, err := s.buildGameDTOs(ctx, games)
+	if err != nil {
+		return nil, err
+	}
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.GameListTTL())
+	return result, nil
 }
 
 func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, error) {
+	cacheKey := s.playersCacheKey()
+	var cached model.PlayerSummaryDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return &cached, nil
+	}
+
 	dto := &model.PlayerSummaryDTO{
 		CurrentPlayers: make([]*model.UserDTO, 0),
 		AllPlayers:     make([]*model.UserDTO, 0),
@@ -249,6 +307,7 @@ func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, 
 		dto.AllPlayers = append(dto.AllPlayers, (&model.UserDTO{}).FromUser(user))
 	}
 
+	s.setCache(ctx, cacheKey, dto, s.cfg.Redis.PlayerTTL())
 	return dto, nil
 }
 
@@ -623,6 +682,27 @@ func (s *gameService) findUsersByIDMap(ctx context.Context, userIDs []int) (map[
 	return usersByID, nil
 }
 
+func (s *gameService) loadGameRelatedUserIDs(ctx context.Context, gameID int) ([]int, error) {
+	userIDs := make([]int, 0)
+
+	game, err := s.gameRepo.FindByID(ctx, gameID)
+	if err == nil && game != nil {
+		userIDs = append(userIDs, game.CreatedBy)
+	}
+
+	records, err := s.gameRepo.FindRecordsByGameID(ctx, gameID)
+	if err != nil {
+		if len(userIDs) > 0 {
+			return uniqueInts(userIDs), nil
+		}
+		return nil, err
+	}
+	for _, record := range records {
+		userIDs = append(userIDs, record.UserID)
+	}
+	return uniqueInts(userIDs), nil
+}
+
 func uniqueInts(ids []int) []int {
 	if len(ids) == 0 {
 		return []int{}
@@ -638,4 +718,75 @@ func uniqueInts(ids []int) []int {
 		result = append(result, id)
 	}
 	return result
+}
+
+func (s *gameService) playersCacheKey() string {
+	return "players:summary"
+}
+
+func (s *gameService) recentGamesCacheKey(limit, offset int) string {
+	return "games:recent:limit:" + strconv.Itoa(limit) + ":offset:" + strconv.Itoa(offset)
+}
+
+func (s *gameService) gamesByUserCacheKey(userID, limit, offset int) string {
+	return "games:user:" + strconv.Itoa(userID) + ":limit:" + strconv.Itoa(limit) + ":offset:" + strconv.Itoa(offset)
+}
+
+func (s *gameService) invalidatePlayerCaches(ctx context.Context) {
+	s.deleteCache(ctx, s.playersCacheKey())
+}
+
+func (s *gameService) invalidateGameCaches(ctx context.Context, userIDs ...int) {
+	keys := []string{s.playersCacheKey(), "users:all", "users:rank"}
+	for _, userID := range uniqueInts(userIDs) {
+		keys = append(keys, "user:stats:"+strconv.Itoa(userID))
+	}
+	s.deleteCache(ctx, keys...)
+	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:")
+}
+
+func (s *gameService) getCache(ctx context.Context, key string, dest any) (bool, error) {
+	if s.cache == nil || s.cfg == nil {
+		return false, nil
+	}
+	ok, err := s.cache.GetJSON(ctx, key, dest)
+	if err != nil {
+		logger.Warn("read cache failed", logger.String("key", key), logger.Err(err))
+	}
+	return ok, err
+}
+
+func (s *gameService) setCache(ctx context.Context, key string, value any, ttl time.Duration) {
+	if s.cache == nil || s.cfg == nil {
+		return
+	}
+	if err := s.cache.SetJSON(ctx, key, value, ttl); err != nil {
+		logger.Warn("write cache failed", logger.String("key", key), logger.Err(err))
+	}
+}
+
+func (s *gameService) deleteCache(ctx context.Context, keys ...string) {
+	if s.cache == nil || len(keys) == 0 {
+		return
+	}
+	if err := s.cache.Delete(ctx, keys...); err != nil {
+		logger.Warn("delete cache failed", logger.Any("keys", keys), logger.Err(err))
+	}
+}
+
+func (s *gameService) deleteCacheByPrefix(ctx context.Context, prefixes ...string) {
+	if s.cache == nil || len(prefixes) == 0 {
+		return
+	}
+	if err := s.cache.DeleteByPrefix(ctx, prefixes...); err != nil {
+		logger.Warn("delete cache by prefix failed", logger.Any("prefixes", prefixes), logger.Err(err))
+	}
+}
+
+func extractPlayerIDsFromCreateReq(req *model.CreateGameRequest) []int {
+	userIDs := make([]int, 0, len(req.Players))
+	for _, player := range req.Players {
+		userIDs = append(userIDs, player.UserID)
+	}
+	return userIDs
 }

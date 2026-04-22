@@ -1,6 +1,6 @@
 server:
   port: 8080
-  mode: release
+  mode: debug
 
 database:
   host: 10.199.203.199
@@ -11,8 +11,21 @@ database:
   max_idle_conns: 10
   max_open_conns: 100
 
+redis:
+  enabled: true
+  addr: 1Panel-redis-aJZo:6379
+  username: ""
+  password: "redis_N3FfJ3"
+  db: 0
+  key_prefix: mango-crew
+  default_ttl_seconds: 300
+  player_ttl_seconds: 120
+  game_list_ttl_seconds: 180
+  user_ttl_seconds: 300
+  rank_ttl_seconds: 120
+
 log:
-  level: release
+  level: debug
   format: console
   output: stdout
 

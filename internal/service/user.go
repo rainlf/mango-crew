@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strconv"
 	"time"
 
+	"github.com/rainlf/mango-crew/internal/cache"
 	"github.com/rainlf/mango-crew/internal/config"
 	"github.com/rainlf/mango-crew/internal/model"
 	"github.com/rainlf/mango-crew/internal/repository"
@@ -27,6 +30,8 @@ type UserService interface {
 type userService struct {
 	userRepo   repository.UserRepository
 	gameRepo   repository.GameRepository
+	cache      *cache.Store
+	cfg        *config.Config
 	httpClient *http.Client
 	wxConfig   config.WechatConfig
 	appID      string
@@ -34,10 +39,12 @@ type userService struct {
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, wxConfig config.WechatConfig, appID, appSecret string) UserService {
+func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
 	return &userService{
 		userRepo:   userRepo,
 		gameRepo:   gameRepo,
+		cache:      cacheStore,
+		cfg:        cfg,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		wxConfig:   wxConfig,
 		appID:      appID,
@@ -88,6 +95,7 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 			logger.Error("create user failed", logger.Err(err))
 			return nil, err
 		}
+		s.invalidateUserCaches(ctx, user.ID)
 		logger.Info("new user registered", logger.Int("user_id", user.ID))
 	} else {
 		// 更新现有用户
@@ -104,6 +112,12 @@ func (s *userService) Login(ctx context.Context, code string) (*model.User, erro
 }
 
 func (s *userService) GetUserByID(ctx context.Context, id int) (*model.UserWithStatsDTO, error) {
+	cacheKey := s.userStatsCacheKey(id)
+	var cached model.UserWithStatsDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return &cached, nil
+	}
+
 	user, err := s.userRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -125,12 +139,14 @@ func (s *userService) GetUserByID(ctx context.Context, id int) (*model.UserWithS
 		logger.Warn("count player wins failed", logger.Err(err), logger.Int("user_id", id))
 	}
 
-	return &model.UserWithStatsDTO{
+	result := &model.UserWithStatsDTO{
 		UserDTO:     (&model.UserDTO{}).FromUser(user),
 		TotalPoints: totalPoints,
 		TotalGames:  int(totalGames),
 		WinCount:    int(winCount),
-	}, nil
+	}
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.UserTTL())
+	return result, nil
 }
 
 func (s *userService) UpdateUser(ctx context.Context, userID int, req *model.UpdateUserRequest) (*model.User, error) {
@@ -152,10 +168,17 @@ func (s *userService) UpdateUser(ctx context.Context, userID int, req *model.Upd
 		return nil, err
 	}
 
+	s.invalidateUserCaches(ctx, userID)
 	return user, nil
 }
 
 func (s *userService) GetUserRank(ctx context.Context) ([]*model.UserWithStatsDTO, error) {
+	cacheKey := s.rankCacheKey()
+	var cached []*model.UserWithStatsDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
 	users, err := s.userRepo.FindAll(ctx)
 	if err != nil {
 		return nil, err
@@ -175,19 +198,21 @@ func (s *userService) GetUserRank(ctx context.Context) ([]*model.UserWithStatsDT
 		})
 	}
 
-	// 按积分降序排序
-	for i := 0; i < len(result)-1; i++ {
-		for j := i + 1; j < len(result); j++ {
-			if result[i].TotalPoints < result[j].TotalPoints {
-				result[i], result[j] = result[j], result[i]
-			}
-		}
-	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].TotalPoints > result[j].TotalPoints
+	})
 
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.RankTTL())
 	return result, nil
 }
 
 func (s *userService) GetAllUsers(ctx context.Context) ([]*model.UserDTO, error) {
+	cacheKey := s.allUsersCacheKey()
+	var cached []*model.UserDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
 	users, err := s.userRepo.FindAll(ctx)
 	if err != nil {
 		return nil, err
@@ -197,10 +222,67 @@ func (s *userService) GetAllUsers(ctx context.Context) ([]*model.UserDTO, error)
 	for _, user := range users {
 		dtos = append(dtos, (&model.UserDTO{}).FromUser(user))
 	}
+
+	s.setCache(ctx, cacheKey, dtos, s.cfg.Redis.UserTTL())
 	return dtos, nil
 }
 
 // decodeBase64Avatar 解码base64头像（如果需要）
 func decodeBase64Avatar(base64Str string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(base64Str)
+}
+
+func (s *userService) userStatsCacheKey(userID int) string {
+	return "user:stats:" + strconv.Itoa(userID)
+}
+
+func (s *userService) rankCacheKey() string {
+	return "users:rank"
+}
+
+func (s *userService) allUsersCacheKey() string {
+	return "users:all"
+}
+
+func (s *userService) invalidateUserCaches(ctx context.Context, userID int) {
+	s.deleteCache(ctx, s.userStatsCacheKey(userID), s.rankCacheKey(), s.allUsersCacheKey(), "players:summary")
+	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:")
+}
+
+func (s *userService) getCache(ctx context.Context, key string, dest any) (bool, error) {
+	if s.cache == nil || s.cfg == nil {
+		return false, nil
+	}
+	ok, err := s.cache.GetJSON(ctx, key, dest)
+	if err != nil {
+		logger.Warn("read cache failed", logger.String("key", key), logger.Err(err))
+	}
+	return ok, err
+}
+
+func (s *userService) setCache(ctx context.Context, key string, value any, ttl time.Duration) {
+	if s.cache == nil || s.cfg == nil {
+		return
+	}
+	if err := s.cache.SetJSON(ctx, key, value, ttl); err != nil {
+		logger.Warn("write cache failed", logger.String("key", key), logger.Err(err))
+	}
+}
+
+func (s *userService) deleteCache(ctx context.Context, keys ...string) {
+	if s.cache == nil || len(keys) == 0 {
+		return
+	}
+	if err := s.cache.Delete(ctx, keys...); err != nil {
+		logger.Warn("delete cache failed", logger.Any("keys", keys), logger.Err(err))
+	}
+}
+
+func (s *userService) deleteCacheByPrefix(ctx context.Context, prefixes ...string) {
+	if s.cache == nil || len(prefixes) == 0 {
+		return
+	}
+	if err := s.cache.DeleteByPrefix(ctx, prefixes...); err != nil {
+		logger.Warn("delete cache by prefix failed", logger.Any("prefixes", prefixes), logger.Err(err))
+	}
 }

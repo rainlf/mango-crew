@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rainlf/mango-crew/internal/cache"
 	"github.com/rainlf/mango-crew/internal/config"
 	"github.com/rainlf/mango-crew/internal/handler"
 	"github.com/rainlf/mango-crew/internal/middleware"
@@ -64,14 +65,30 @@ func main() {
 		logger.Fatal("Failed to migrate database", logger.Err(err))
 	}
 
+	cacheStore, err := cache.NewStore(cfg.Redis)
+	if err != nil {
+		logger.Warn("Redis cache disabled", logger.Err(err))
+	} else {
+		defer func() {
+			if closeErr := cacheStore.Close(); closeErr != nil {
+				logger.Warn("Close redis failed", logger.Err(closeErr))
+			}
+		}()
+		if cacheStore.Enabled() {
+			logger.Info("Redis cache enabled", logger.String("addr", cfg.Redis.Addr))
+		} else {
+			logger.Info("Redis cache disabled by config")
+		}
+	}
+
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
 	currentPlayerRepo := repository.NewCurrentPlayerRepository(db)
 	gameRepo := repository.NewGameRepository(db)
 
 	// 初始化服务
-	userService := service.NewUserService(userRepo, gameRepo, cfg.Wechat, wechatAppID, wechatAppSecret)
-	gameService := service.NewGameService(currentPlayerRepo, gameRepo, userRepo)
+	userService := service.NewUserService(userRepo, gameRepo, cacheStore, cfg, cfg.Wechat, wechatAppID, wechatAppSecret)
+	gameService := service.NewGameService(currentPlayerRepo, gameRepo, userRepo, cacheStore, cfg)
 
 	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService, cfg.Storage.UploadDir, cfg.Storage.PublicPath)
