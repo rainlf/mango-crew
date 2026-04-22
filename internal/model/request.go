@@ -3,22 +3,11 @@ package model
 // LoginRequest 登录请求
 // 实际使用 code 查询参数，此处用于文档说明
 
-// CreateSessionRequest 创建场次请求
-type CreateSessionRequest struct {
-	Name string `json:"name" binding:"required,max=100"` // 场次名称
-}
-
-// EndSessionRequest 结束场次请求
-type EndSessionRequest struct {
-	SessionID int `json:"session_id" binding:"required"`
-}
-
 // CreateGameRequest 创建游戏请求
 type CreateGameRequest struct {
-	SessionID int                  `json:"session_id" binding:"required"`
-	GameType  int                  `json:"game_type" binding:"required,min=1,max=6"`
-	Remark    string               `json:"remark" binding:"max=200"`
-	Players   []*GamePlayerRequest `json:"players" binding:"required,min=1"`
+	GameType int                  `json:"game_type" binding:"required,min=1,max=6"`
+	Remark   string               `json:"remark" binding:"max=200"`
+	Players  []*GamePlayerRequest `json:"players" binding:"required,min=1"`
 }
 
 // GamePlayerRequest 游戏玩家请求

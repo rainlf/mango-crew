@@ -14,17 +14,12 @@ import (
 
 // GameService 游戏服务接口
 type GameService interface {
-	CreateSession(ctx context.Context, userID int, req *model.CreateSessionRequest) (*model.GameSession, error)
-	EndSession(ctx context.Context, sessionID int) error
-	GetSessions(ctx context.Context, limit, offset int) ([]*model.GameSessionDTO, error)
-	GetActiveSessions(ctx context.Context) ([]*model.GameSessionDTO, error)
 	UpdateCurrentPlayers(ctx context.Context, userID int, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error)
 
 	CreateGame(ctx context.Context, userID int, req *model.CreateGameRequest) (*model.Game, error)
 	RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error)
 	SettleGame(ctx context.Context, gameID int) error
 	CancelGame(ctx context.Context, gameID int) error
-	GetGamesBySession(ctx context.Context, sessionID int, limit, offset int) ([]*model.GameDTO, error)
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
 	GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
 
@@ -33,88 +28,23 @@ type GameService interface {
 
 // gameService 游戏服务实现
 type gameService struct {
-	sessionRepo repository.GameSessionRepository
-	gameRepo    repository.GameRepository
-	userRepo    repository.UserRepository
-	rand        *rand.Rand
+	currentPlayerRepo repository.CurrentPlayerRepository
+	gameRepo          repository.GameRepository
+	userRepo          repository.UserRepository
+	rand              *rand.Rand
 }
 
 // NewGameService 创建游戏服务实例
-func NewGameService(sessionRepo repository.GameSessionRepository, gameRepo repository.GameRepository, userRepo repository.UserRepository) GameService {
+func NewGameService(currentPlayerRepo repository.CurrentPlayerRepository, gameRepo repository.GameRepository, userRepo repository.UserRepository) GameService {
 	return &gameService{
-		sessionRepo: sessionRepo,
-		gameRepo:    gameRepo,
-		userRepo:    userRepo,
-		rand:        rand.New(rand.NewSource(time.Now().UnixNano())),
+		currentPlayerRepo: currentPlayerRepo,
+		gameRepo:          gameRepo,
+		userRepo:          userRepo,
+		rand:              rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 }
 
-// Session 相关
-
-func (s *gameService) CreateSession(ctx context.Context, userID int, req *model.CreateSessionRequest) (*model.GameSession, error) {
-	session := &model.GameSession{
-		Name:      req.Name,
-		Status:    0,
-		CreatedBy: userID,
-		CreatedAt: time.Now(),
-	}
-	if err := s.sessionRepo.Create(ctx, session); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-func (s *gameService) EndSession(ctx context.Context, sessionID int) error {
-	return s.sessionRepo.EndSession(ctx, sessionID)
-}
-
-func (s *gameService) GetSessions(ctx context.Context, limit, offset int) ([]*model.GameSessionDTO, error) {
-	sessions, err := s.sessionRepo.FindAllSessions(ctx, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []*model.GameSessionDTO
-	for _, session := range sessions {
-		gameCount, _ := s.sessionRepo.CountGames(ctx, session.ID)
-		creator, _ := s.userRepo.FindByID(ctx, session.CreatedBy)
-
-		result = append(result, &model.GameSessionDTO{
-			ID:        session.ID,
-			Name:      session.Name,
-			Status:    session.Status,
-			CreatedBy: (&model.UserDTO{}).FromUser(creator),
-			GameCount: int(gameCount),
-			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
-		})
-	}
-	return result, nil
-}
-
-func (s *gameService) GetActiveSessions(ctx context.Context) ([]*model.GameSessionDTO, error) {
-	sessions, err := s.sessionRepo.FindActiveSessions(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var result []*model.GameSessionDTO
-	for _, session := range sessions {
-		gameCount, _ := s.sessionRepo.CountGames(ctx, session.ID)
-		creator, _ := s.userRepo.FindByID(ctx, session.CreatedBy)
-
-		result = append(result, &model.GameSessionDTO{
-			ID:        session.ID,
-			Name:      session.Name,
-			Status:    session.Status,
-			CreatedBy: (&model.UserDTO{}).FromUser(creator),
-			GameCount: int(gameCount),
-			CreatedAt: session.CreatedAt.Format("2006-01-02 15:04:05"),
-		})
-	}
-	return result, nil
-}
-
-func (s *gameService) UpdateCurrentPlayers(ctx context.Context, userID int, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error) {
+func (s *gameService) UpdateCurrentPlayers(ctx context.Context, _ int, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error) {
 	userIDs, err := s.normalizeCurrentPlayerIDs(req.UserIDs)
 	if err != nil {
 		return nil, err
@@ -122,12 +52,7 @@ func (s *gameService) UpdateCurrentPlayers(ctx context.Context, userID int, req 
 	if err := s.ensureUsersExist(ctx, userIDs); err != nil {
 		return nil, err
 	}
-
-	session, err := s.getOrCreateActiveSession(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.sessionRepo.ReplacePlayers(ctx, session.ID, userIDs); err != nil {
+	if err := s.currentPlayerRepo.ReplacePlayers(ctx, userIDs); err != nil {
 		return nil, err
 	}
 	return s.GetPlayers(ctx)
@@ -141,19 +66,10 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 		return nil, err
 	}
 
-	if req.SessionID == 0 {
-		activeSession, sessionErr := s.getOrCreateActiveSession(ctx, userID)
-		if sessionErr != nil {
-			return nil, sessionErr
-		}
-		req.SessionID = activeSession.ID
-	}
-
 	gameType := model.GameTypeFromCode(req.GameType)
 
 	// 创建游戏记录
 	game := &model.Game{
-		SessionID: req.SessionID,
 		Type:      gameType,
 		Status:    model.GameStatusPending,
 		Remark:    req.Remark,
@@ -229,16 +145,12 @@ func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.Cre
 
 func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error) {
 	gameType := model.GameTypeFromCode(req.GameType)
+	var err error
 
 	if req.RecorderID <= 0 {
 		return nil, errors.New("recorderId不能为空")
 	}
 	if err := s.ensureUsersExist(ctx, []int{req.RecorderID}); err != nil {
-		return nil, err
-	}
-
-	session, err := s.getOrCreateActiveSession(ctx, req.RecorderID)
-	if err != nil {
 		return nil, err
 	}
 
@@ -251,11 +163,11 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		if err := s.ensureUsersExist(ctx, currentPlayerIDs); err != nil {
 			return nil, err
 		}
-		if err := s.sessionRepo.ReplacePlayers(ctx, session.ID, currentPlayerIDs); err != nil {
+		if err := s.currentPlayerRepo.ReplacePlayers(ctx, currentPlayerIDs); err != nil {
 			return nil, err
 		}
 	} else {
-		currentPlayerIDs, err = s.loadCurrentPlayerIDs(ctx, session.ID)
+		currentPlayerIDs, err = s.loadCurrentPlayerIDs(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -267,7 +179,6 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 
 	now := time.Now()
 	game := &model.Game{
-		SessionID: session.ID,
 		Type:      gameType,
 		Status:    model.GameStatusSettled,
 		Remark:    req.Remark,
@@ -310,14 +221,6 @@ func (s *gameService) CancelGame(ctx context.Context, gameID int) error {
 	return s.gameRepo.CancelGame(ctx, gameID)
 }
 
-func (s *gameService) GetGamesBySession(ctx context.Context, sessionID int, limit, offset int) ([]*model.GameDTO, error) {
-	games, err := s.gameRepo.FindBySessionID(ctx, sessionID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	return s.buildGameDTOs(ctx, games)
-}
-
 func (s *gameService) GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error) {
 	games, err := s.gameRepo.FindGamesByUser(ctx, userID, limit, offset)
 	if err != nil {
@@ -340,20 +243,14 @@ func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, 
 		AllPlayers:     make([]*model.UserDTO, 0),
 	}
 
-	session, err := s.sessionRepo.FindLatestActive(ctx)
+	currentPlayers, err := s.currentPlayerRepo.FindPlayers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if session != nil {
-		currentPlayers, findErr := s.sessionRepo.FindPlayers(ctx, session.ID)
-		if findErr != nil {
-			return nil, findErr
-		}
-		for _, player := range currentPlayers {
-			user, findErr := s.userRepo.FindByID(ctx, player.UserID)
-			if findErr == nil && user != nil {
-				dto.CurrentPlayers = append(dto.CurrentPlayers, (&model.UserDTO{}).FromUser(user))
-			}
+	for _, player := range currentPlayers {
+		user, findErr := s.userRepo.FindByID(ctx, player.UserID)
+		if findErr == nil && user != nil {
+			dto.CurrentPlayers = append(dto.CurrentPlayers, (&model.UserDTO{}).FromUser(user))
 		}
 	}
 
@@ -590,29 +487,8 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 	return players, nil
 }
 
-func (s *gameService) getOrCreateActiveSession(ctx context.Context, userID int) (*model.GameSession, error) {
-	session, err := s.sessionRepo.FindLatestActive(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if session != nil {
-		return session, nil
-	}
-
-	session = &model.GameSession{
-		Name:      "当前牌桌",
-		Status:    0,
-		CreatedBy: userID,
-		CreatedAt: time.Now(),
-	}
-	if err := s.sessionRepo.Create(ctx, session); err != nil {
-		return nil, err
-	}
-	return session, nil
-}
-
-func (s *gameService) loadCurrentPlayerIDs(ctx context.Context, sessionID int) ([]int, error) {
-	players, err := s.sessionRepo.FindPlayers(ctx, sessionID)
+func (s *gameService) loadCurrentPlayerIDs(ctx context.Context) ([]int, error) {
+	players, err := s.currentPlayerRepo.FindPlayers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -667,7 +543,6 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 	for _, game := range games {
 		dto := &model.GameDTO{
 			ID:        game.ID,
-			SessionID: game.SessionID,
 			Type:      game.Type.Name(),
 			TypeCode:  int(game.Type),
 			Status:    int(game.Status),

@@ -20,30 +20,15 @@ CREATE TABLE IF NOT EXISTS `user` (
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
--- 游戏场次表
-CREATE TABLE IF NOT EXISTS `game_session` (
-    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '场次ID',
-    `name` VARCHAR(100) DEFAULT '' COMMENT '场次名称',
-    `status` TINYINT DEFAULT 0 NOT NULL COMMENT '状态: 0-进行中 1-已结束',
-    `created_by` INT UNSIGNED NOT NULL COMMENT '创建者ID',
-    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
-    `ended_at` TIMESTAMP NULL DEFAULT NULL COMMENT '结束时间',
-    KEY `idx_status` (`status`),
-    KEY `idx_created_by` (`created_by`),
-    KEY `idx_created_at` (`created_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏场次表';
-
 -- 游戏记录表
 CREATE TABLE IF NOT EXISTS `game` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '游戏ID',
-    `session_id` INT UNSIGNED NOT NULL COMMENT '场次ID',
     `type` TINYINT NOT NULL COMMENT '类型: 1-平胡 2-自摸 3-一炮双响 4-一炮三响 5-相公 6-运动',
     `status` TINYINT DEFAULT 0 NOT NULL COMMENT '状态: 0-进行中 1-已结算 2-已取消',
     `remark` VARCHAR(200) DEFAULT '' COMMENT '备注',
     `created_by` INT UNSIGNED NOT NULL COMMENT '创建者ID',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
     `settled_at` TIMESTAMP NULL DEFAULT NULL COMMENT '结算时间',
-    KEY `idx_session` (`session_id`),
     KEY `idx_status` (`status`),
     KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏记录表';
@@ -51,12 +36,10 @@ CREATE TABLE IF NOT EXISTS `game` (
 -- 当前牌桌玩家表
 CREATE TABLE IF NOT EXISTS `session_player` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '记录ID',
-    `session_id` INT UNSIGNED NOT NULL COMMENT '场次ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
     `seat` TINYINT NOT NULL COMMENT '当前位置 1-4',
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL COMMENT '更新时间',
-    KEY `idx_session_player_session` (`session_id`),
     KEY `idx_session_player_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='当前牌桌玩家表';
 

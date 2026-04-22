@@ -66,7 +66,6 @@ const (
 // Game 游戏记录（一盘）
 type Game struct {
 	ID        int        `gorm:"primaryKey;autoIncrement" json:"id"`
-	SessionID int        `gorm:"not null;index:idx_session" json:"session_id"`
 	Type      GameType   `gorm:"not null" json:"type"`
 	Status    GameStatus `gorm:"default:0;not null" json:"status"`
 	Remark    string     `gorm:"size:200" json:"remark"`

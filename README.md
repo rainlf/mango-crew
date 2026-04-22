@@ -149,8 +149,7 @@ curl http://localhost:8080/api/health
 | 表名 | 说明 |
 | --- | --- |
 | `user` | 用户信息，包含微信 `open_id`、昵称、头像等 |
-| `game_session` | 一次牌局场次，包含创建者、状态、开始/结束时间 |
-| `session_player` | 当前牌桌上的玩家列表，维护加入后的 1-4 人状态 |
+| `session_player` | 当前牌桌上的玩家列表，维护当前 1-4 人状态 |
 | `game` | 单盘对局记录 |
 | `game_player` | 对局中的玩家记录、角色与积分 |
 | `game_player_win_type` | 玩家命中的番型及倍数 |
@@ -172,8 +171,7 @@ curl http://localhost:8080/api/health
 | --- | --- |
 | 健康检查 | `GET /api/health` |
 | 用户 | `GET /api/user/login`、`GET /api/user/info`、`POST /api/user/update`、`GET /api/user/rank`、`GET /api/user/list` |
-| 场次 | `POST /api/session`、`POST /api/session/end`、`GET /api/session/list`、`GET /api/session/active` |
-| 对局 | `POST /api/game`、`POST /api/game/record`、`POST /api/game/settle`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/list`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
+| 对局 | `POST /api/game`、`POST /api/game/record`、`POST /api/game/settle`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
 
 ## 请求约定
 

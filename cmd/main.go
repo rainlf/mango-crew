@@ -66,12 +66,12 @@ func main() {
 
 	// 初始化仓库
 	userRepo := repository.NewUserRepository(db)
-	sessionRepo := repository.NewGameSessionRepository(db)
+	currentPlayerRepo := repository.NewCurrentPlayerRepository(db)
 	gameRepo := repository.NewGameRepository(db)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, gameRepo, cfg.Wechat, wechatAppID, wechatAppSecret)
-	gameService := service.NewGameService(sessionRepo, gameRepo, userRepo)
+	gameService := service.NewGameService(currentPlayerRepo, gameRepo, userRepo)
 
 	// 初始化处理器
 	userHandler := handler.NewUserHandler(userService, cfg.Storage.UploadDir, cfg.Storage.PublicPath)
@@ -153,7 +153,6 @@ func initDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
-		&model.GameSession{},
 		&model.SessionPlayer{},
 		&model.Game{},
 		&model.GamePlayer{},

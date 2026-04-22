@@ -28,22 +28,9 @@ type UserWithStatsDTO struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
-// GameSessionDTO 场次DTO
-type GameSessionDTO struct {
-	ID          int      `json:"id"`
-	Name        string   `json:"name"`
-	Status      int      `json:"status"`
-	CreatedBy   *UserDTO `json:"created_by"`
-	GameCount   int      `json:"game_count"`
-	PlayerCount int      `json:"player_count"`
-	CreatedAt   string   `json:"created_at"`
-	EndedAt     *string  `json:"ended_at,omitempty"`
-}
-
 // GameDTO 游戏记录DTO
 type GameDTO struct {
 	ID        int              `json:"id"`
-	SessionID int              `json:"session_id"`
 	Type      string           `json:"type"`
 	TypeCode  int              `json:"type_code"`
 	Status    int              `json:"status"`

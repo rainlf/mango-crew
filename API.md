@@ -203,92 +203,6 @@
 }
 ```
 
-## 场次接口
-
-### POST `/api/session`
-
-创建一个新场次。
-
-请求头或参数：
-
-| 参数 | 位置 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `X-User-ID` | header | 否 | 当前用户 ID，建议传递 |
-| `userId` | query | 否 | 当前用户 ID，未传 Header 时可用 |
-
-请求体：
-
-```json
-{
-  "name": "周五晚场"
-}
-```
-
-说明：
-
-- 如果未传用户 ID，`created_by` 可能被记录为 `0`。
-
-响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "id": 1,
-    "name": "周五晚场",
-    "status": 0,
-    "created_by": 1,
-    "created_at": "2026-04-21T10:00:00Z"
-  }
-}
-```
-
-### POST `/api/session/end`
-
-结束指定场次。
-
-请求类型：`application/x-www-form-urlencoded`
-
-请求参数：
-
-| 参数 | 位置 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `sessionId` | form | 是 | 场次 ID |
-
-响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": null
-}
-```
-
-### GET `/api/session/list`
-
-分页获取场次列表。
-
-请求参数：
-
-| 参数 | 位置 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `limit` | query | 否 | 10 | 每页数量 |
-| `offset` | query | 否 | 0 | 偏移量 |
-
-响应字段说明：
-
-- `game_count`：当前场次下对局数量
-- `created_by`：创建者基础信息对象
-- `player_count`：DTO 中定义了该字段，但当前实现未填充，默认值可能为 `0`
-
-### GET `/api/session/active`
-
-获取所有进行中的场次。
-
-响应结构与 `/api/session/list` 一致。
-
 ## 对局接口
 
 ### POST `/api/game`
@@ -306,7 +220,6 @@
 
 ```json
 {
-  "session_id": 1,
   "game_type": 2,
   "remark": "清一色自摸",
   "players": [
@@ -330,7 +243,6 @@
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `session_id` | 是 | 所属场次 ID |
 | `game_type` | 是 | 游戏类型，见上方枚举 |
 | `remark` | 否 | 备注，最长 200 字符 |
 | `players` | 是 | 玩家列表 |
@@ -371,7 +283,7 @@
 
 ### POST `/api/game/record`
 
-按麻将记牌场景直接记录一局“已结算”对局。该接口会复用当前活跃牌桌，并保留当前 4 人状态用于继续记录下一局。
+按麻将记牌场景直接记录一局“已结算”对局。该接口会更新当前牌桌玩家，并保留当前 4 人状态用于继续记录下一局。
 
 请求体：
 
@@ -441,7 +353,6 @@
   "message": "success",
   "data": {
     "id": 1,
-    "session_id": 1,
     "type": 2,
     "status": 0,
     "remark": "清一色自摸",
@@ -495,15 +406,14 @@
 }
 ```
 
-### GET `/api/game/list`
+### GET `/api/game/recent`
 
-分页获取某个场次下的对局列表。
+分页获取最近的对局列表。
 
 请求参数：
 
 | 参数 | 位置 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
-| `sessionId` | query | 是 | - | 场次 ID |
 | `limit` | query | 否 | 10 | 每页数量 |
 | `offset` | query | 否 | 0 | 偏移量 |
 
@@ -525,7 +435,6 @@
   "data": [
     {
       "id": 1,
-      "session_id": 1,
       "type": "自摸",
       "type_code": 2,
       "status": 1,
@@ -564,19 +473,6 @@
 }
 ```
 
-### GET `/api/game/recent`
-
-分页获取最近的对局列表。
-
-请求参数：
-
-| 参数 | 位置 | 必填 | 默认值 | 说明 |
-| --- | --- | --- | --- | --- |
-| `limit` | query | 否 | 10 | 每页数量 |
-| `offset` | query | 否 | 0 | 偏移量 |
-
-响应结构与 `/api/game/list` 一致。
-
 ### GET `/api/game/user/list`
 
 分页获取某个用户参与过的已结算对局。
@@ -589,7 +485,7 @@
 | `limit` | query | 否 | 10 | 每页数量 |
 | `offset` | query | 否 | 0 | 偏移量 |
 
-响应结构与 `/api/game/list` 一致。
+响应结构与 `/api/game/recent` 一致。
 
 ### GET `/api/game/players`
 
@@ -639,7 +535,6 @@
 | 表名 | 作用 |
 | --- | --- |
 | `user` | 用户主数据 |
-| `game_session` | 场次主数据 |
 | `session_player` | 当前牌桌玩家 |
 | `game` | 单盘对局 |
 | `game_player` | 每盘对局的玩家明细 |
@@ -656,4 +551,4 @@ mysql -uroot -p mango_crew < migrations/init.sql
 
 - 目前没有实现 `/api/win-type/list`、`/api/game/detail`、`/api/game/stats` 等接口。
 - `POST /api/user/update` 会读取头像字段，但不会真正上传图片。
-- `POST /api/session` 与 `POST /api/game` 如果未传用户 ID，创建者会落成 `0`。
+- `POST /api/game` 如果未传用户 ID，创建者会落成 `0`。

@@ -13,7 +13,6 @@ type GameRepository interface {
 	Create(ctx context.Context, game *model.Game) error
 	Update(ctx context.Context, game *model.Game) error
 	FindByID(ctx context.Context, id int) (*model.Game, error)
-	FindBySessionID(ctx context.Context, sessionID int, limit, offset int) ([]*model.Game, error)
 	FindRecentGames(ctx context.Context, limit, offset int) ([]*model.Game, error)
 	FindGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error)
 	SettleGame(ctx context.Context, id int) error
@@ -59,18 +58,6 @@ func (r *gameRepository) FindByID(ctx context.Context, id int) (*model.Game, err
 		return nil, err
 	}
 	return &game, nil
-}
-
-func (r *gameRepository) FindBySessionID(ctx context.Context, sessionID int, limit, offset int) ([]*model.Game, error) {
-	var games []*model.Game
-	err := r.db.WithContext(ctx).
-		Where("session_id = ?", sessionID).
-		Where("status = ?", model.GameStatusSettled).
-		Order("created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Find(&games).Error
-	return games, err
 }
 
 func (r *gameRepository) FindRecentGames(ctx context.Context, limit, offset int) ([]*model.Game, error) {
