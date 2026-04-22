@@ -13,9 +13,9 @@ database:
 
 redis:
   enabled: true
-  addr: 1Panel-redis-aJZo:6379
+  addr: 10.199.203.199:6379
   username: ""
-  password: "redis_N3FfJ3"
+  password: "redis_w33iwr"
   db: 0
   key_prefix: mango-crew
   default_ttl_seconds: 300
