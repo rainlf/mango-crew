@@ -1,6 +1,6 @@
 server:
   port: 8080
-  mode: debug
+  mode: release
 
 database:
   host: 10.199.203.199
@@ -12,7 +12,7 @@ database:
   max_open_conns: 100
 
 log:
-  level: debug
+  level: release
   format: console
   output: stdout
 
