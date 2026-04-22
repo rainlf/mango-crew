@@ -149,17 +149,17 @@ curl http://localhost:8080/api/health
 | 表名 | 说明 |
 | --- | --- |
 | `user` | 用户信息，包含微信 `open_id`、昵称、头像等 |
-| `session_player` | 当前牌桌上的玩家列表，维护当前 1-4 人状态 |
+| `game_player` | 当前牌桌上的玩家列表，维护当前 1-4 人状态 |
 | `game` | 单盘对局记录 |
-| `game_player` | 对局中的玩家记录、角色、积分与赢家番型 JSON |
+| `game_record` | 对局记录明细，包含角色、积分与赢家番型 JSON |
 
 积分相关说明：
 
 - `game.type` 记录对局类型：平胡、自摸、一炮双响、一炮三响、相公、运动。
-- `game_player.role` 记录玩家角色：赢家、输家、记录者、参与者。
+- `game_record.role` 记录玩家角色：赢家、输家、记录者、参与者。
 - `final_points` 由基础分和番型倍数计算得出。
 - 已记录榜单和用户统计只统计 `已结算` 且未取消的对局。
-- 番型字典 hardcode 在代码中，赢家番型明细直接存放在 `game_player.win_types`。
+- 番型字典 hardcode 在代码中，赢家番型明细直接存放在 `game_record.win_types`。
 
 ## 接口概览
 
