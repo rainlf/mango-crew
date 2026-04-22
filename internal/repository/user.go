@@ -12,6 +12,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	Update(ctx context.Context, user *model.User) error
 	FindByID(ctx context.Context, id int) (*model.User, error)
+	FindByIDIn(ctx context.Context, ids []int) ([]*model.User, error)
 	FindByOpenID(ctx context.Context, openID string) (*model.User, error)
 	FindAll(ctx context.Context) ([]*model.User, error)
 }
@@ -41,6 +42,18 @@ func (r *userRepository) FindByID(ctx context.Context, id int) (*model.User, err
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *userRepository) FindByIDIn(ctx context.Context, ids []int) ([]*model.User, error) {
+	if len(ids) == 0 {
+		return []*model.User{}, nil
+	}
+
+	var users []*model.User
+	err := r.db.WithContext(ctx).
+		Where("id IN ?", ids).
+		Find(&users).Error
+	return users, err
 }
 
 func (r *userRepository) FindByOpenID(ctx context.Context, openID string) (*model.User, error) {

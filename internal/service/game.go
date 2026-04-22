@@ -247,9 +247,18 @@ func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, 
 	if err != nil {
 		return nil, err
 	}
+
+	currentUserIDs := make([]int, 0, len(currentPlayers))
 	for _, player := range currentPlayers {
-		user, findErr := s.userRepo.FindByID(ctx, player.UserID)
-		if findErr == nil && user != nil {
+		currentUserIDs = append(currentUserIDs, player.UserID)
+	}
+
+	usersByID, err := s.findUsersByIDMap(ctx, currentUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, player := range currentPlayers {
+		if user, ok := usersByID[player.UserID]; ok {
 			dto.CurrentPlayers = append(dto.CurrentPlayers, (&model.UserDTO{}).FromUser(user))
 		}
 	}
@@ -523,14 +532,19 @@ func (s *gameService) normalizeCurrentPlayerIDs(userIDs []int) ([]int, error) {
 }
 
 func (s *gameService) ensureUsersExist(ctx context.Context, userIDs []int) error {
-	seen := make(map[int]struct{}, len(userIDs))
-	for _, userID := range userIDs {
-		if _, ok := seen[userID]; ok {
-			continue
-		}
-		seen[userID] = struct{}{}
-		user, err := s.userRepo.FindByID(ctx, userID)
-		if err != nil || user == nil {
+	uniqueIDs := uniqueInts(userIDs)
+	users, err := s.userRepo.FindByIDIn(ctx, uniqueIDs)
+	if err != nil {
+		return err
+	}
+
+	exists := make(map[int]struct{}, len(users))
+	for _, user := range users {
+		exists[user.ID] = struct{}{}
+	}
+
+	for _, userID := range uniqueIDs {
+		if _, ok := exists[userID]; !ok {
 			return fmt.Errorf("用户不存在: %d", userID)
 		}
 	}
@@ -539,6 +553,24 @@ func (s *gameService) ensureUsersExist(ctx context.Context, userIDs []int) error
 
 func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([]*model.GameDTO, error) {
 	var result []*model.GameDTO
+	userIDs := make([]int, 0, len(games))
+	playersByGameID := make(map[int][]*model.GamePlayer, len(games))
+	for _, game := range games {
+		userIDs = append(userIDs, game.CreatedBy)
+		players, err := s.gameRepo.FindPlayersByGameID(ctx, game.ID)
+		if err != nil {
+			continue
+		}
+		playersByGameID[game.ID] = players
+		for _, player := range players {
+			userIDs = append(userIDs, player.UserID)
+		}
+	}
+
+	usersByID, err := s.findUsersByIDMap(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, game := range games {
 		dto := &model.GameDTO{
@@ -556,16 +588,12 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 		}
 
 		// 获取创建者信息
-		creator, err := s.userRepo.FindByID(ctx, game.CreatedBy)
-		if err == nil {
+		if creator, ok := usersByID[game.CreatedBy]; ok {
 			dto.CreatedBy = (&model.UserDTO{}).FromUser(creator)
 		}
 
 		// 获取玩家信息
-		players, err := s.gameRepo.FindPlayersByGameID(ctx, game.ID)
-		if err != nil {
-			continue
-		}
+		players := playersByGameID[game.ID]
 		if len(players) == 0 {
 			logger.Warn("skip game without players", logger.Int("game_id", game.ID))
 			continue
@@ -582,8 +610,7 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 			}
 
 			// 获取用户信息
-			user, err := s.userRepo.FindByID(ctx, player.UserID)
-			if err == nil {
+			if user, ok := usersByID[player.UserID]; ok {
 				playerDTO.User = (&model.UserDTO{}).FromUser(user)
 			}
 
@@ -608,4 +635,34 @@ func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([
 	}
 
 	return result, nil
+}
+
+func (s *gameService) findUsersByIDMap(ctx context.Context, userIDs []int) (map[int]*model.User, error) {
+	users, err := s.userRepo.FindByIDIn(ctx, uniqueInts(userIDs))
+	if err != nil {
+		return nil, err
+	}
+
+	usersByID := make(map[int]*model.User, len(users))
+	for _, user := range users {
+		usersByID[user.ID] = user
+	}
+	return usersByID, nil
+}
+
+func uniqueInts(ids []int) []int {
+	if len(ids) == 0 {
+		return []int{}
+	}
+
+	seen := make(map[int]struct{}, len(ids))
+	result := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, id)
+	}
+	return result
 }
