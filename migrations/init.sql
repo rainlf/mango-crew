@@ -60,24 +60,3 @@ CREATE TABLE IF NOT EXISTS `game_player` (
     KEY `idx_user` (`user_id`),
     KEY `idx_game_user` (`game_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='游戏玩家表';
-
--- 番型字典表
-CREATE TABLE IF NOT EXISTS `win_type` (
-    `code` VARCHAR(20) PRIMARY KEY COMMENT '番型代码',
-    `name` VARCHAR(20) NOT NULL COMMENT '番型名称',
-    `base_multi` INT NOT NULL COMMENT '基础倍数',
-    `description` VARCHAR(100) DEFAULT '' COMMENT '描述'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='番型字典表';
-
--- 插入默认番型数据
-INSERT INTO `win_type` (`code`, `name`, `base_multi`, `description`) VALUES
-('wu_hua_guo', '无花果', 1, '无番型'),
-('peng_peng_hu', '碰碰胡', 2, '全部由碰牌组成'),
-('yi_tiao_long', '一条龙', 2, '同一花色1-9'),
-('hun_yi_se', '混一色', 2, '同一花色加字牌'),
-('qing_yi_se', '清一色', 4, '同一花色'),
-('xiao_qi_dui', '小七对', 4, '七个对子'),
-('long_qi_dui', '龙七对', 8, '小七对加一根'),
-('da_diao_che', '大吊车', 2, '单吊将牌'),
-('men_qian_qing', '门前清', 2, '未碰未吃'),
-('gang_kai_hua', '杠开花', 2, '杠牌后自摸');

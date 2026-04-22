@@ -68,7 +68,7 @@ mysql -uroot -p mango_crew < migrations/init.sql
 
 说明：
 
-- `migrations/init.sql` 会创建核心表，并初始化 `win_type` 字典数据。
+- `migrations/init.sql` 会创建核心表；番型字典直接 hardcode 在代码中。
 - 程序启动时也会执行 GORM `AutoMigrate`，用于补齐或同步表结构。
 
 ### 3. 配置文件与环境变量
@@ -151,9 +151,7 @@ curl http://localhost:8080/api/health
 | `user` | 用户信息，包含微信 `open_id`、昵称、头像等 |
 | `session_player` | 当前牌桌上的玩家列表，维护当前 1-4 人状态 |
 | `game` | 单盘对局记录 |
-| `game_player` | 对局中的玩家记录、角色与积分 |
-| `game_player_win_type` | 玩家命中的番型及倍数 |
-| `win_type` | 番型字典表 |
+| `game_player` | 对局中的玩家记录、角色、积分与赢家番型 JSON |
 
 积分相关说明：
 
@@ -161,7 +159,7 @@ curl http://localhost:8080/api/health
 - `game_player.role` 记录玩家角色：赢家、输家、记录者、参与者。
 - `final_points` 由基础分和番型倍数计算得出。
 - 已记录榜单和用户统计只统计 `已结算` 且未取消的对局。
-- `win_type` 初始化数据由 `migrations/init.sql` 导入。
+- 番型字典 hardcode 在代码中，赢家番型明细直接存放在 `game_player.win_types`。
 
 ## 接口概览
 

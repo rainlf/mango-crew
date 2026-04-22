@@ -1,19 +1,14 @@
 package model
 
-// WinType 番型字典
-type WinType struct {
-	Code        string `gorm:"primaryKey;size:20" json:"code"`
-	Name        string `gorm:"size:20;not null" json:"name"`
-	BaseMulti   int    `gorm:"not null" json:"base_multi"`
-	Description string `gorm:"size:100" json:"description"`
-}
-
-func (WinType) TableName() string {
-	return "win_type"
-}
-
 // 预定义番型
-var DefaultWinTypes = []*WinType{
+type WinTypeDef struct {
+	Code        string
+	Name        string
+	BaseMulti   int
+	Description string
+}
+
+var DefaultWinTypes = []*WinTypeDef{
 	{Code: "wu_hua_guo", Name: "无花果", BaseMulti: 1, Description: "无番型"},
 	{Code: "peng_peng_hu", Name: "碰碰胡", BaseMulti: 2, Description: "全部由碰牌组成"},
 	{Code: "yi_tiao_long", Name: "一条龙", BaseMulti: 2, Description: "同一花色1-9"},
@@ -27,7 +22,7 @@ var DefaultWinTypes = []*WinType{
 }
 
 // GetWinTypeByCode 根据code获取番型
-func GetWinTypeByCode(code string) (*WinType, bool) {
+func GetWinTypeByCode(code string) (*WinTypeDef, bool) {
 	for _, wt := range DefaultWinTypes {
 		if wt.Code == code {
 			return wt, true
@@ -37,7 +32,7 @@ func GetWinTypeByCode(code string) (*WinType, bool) {
 }
 
 // GetWinTypeByName 根据中文名称获取番型
-func GetWinTypeByName(name string) (*WinType, bool) {
+func GetWinTypeByName(name string) (*WinTypeDef, bool) {
 	for _, wt := range DefaultWinTypes {
 		if wt.Name == name {
 			return wt, true
@@ -47,7 +42,7 @@ func GetWinTypeByName(name string) (*WinType, bool) {
 }
 
 // ResolveWinType 支持按 code 或中文名称解析番型
-func ResolveWinType(codeOrName string) (*WinType, bool) {
+func ResolveWinType(codeOrName string) (*WinTypeDef, bool) {
 	if wt, ok := GetWinTypeByCode(codeOrName); ok {
 		return wt, true
 	}

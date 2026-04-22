@@ -537,9 +537,7 @@
 | `user` | 用户主数据 |
 | `session_player` | 当前牌桌玩家 |
 | `game` | 单盘对局 |
-| `game_player` | 每盘对局的玩家明细 |
 | `game_player` | 每盘对局的玩家明细，内含赢家番型 JSON |
-| `win_type` | 番型字典 |
 
 推荐初始化方式：
 
