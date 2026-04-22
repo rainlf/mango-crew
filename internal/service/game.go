@@ -502,6 +502,7 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 	players := make([]*model.GamePlayer, 0, len(currentPlayerIDs))
 	playerMap := make(map[int]*model.GamePlayer, len(currentPlayerIDs))
 	for idx, userID := range currentPlayerIDs {
+		// 对局参与者行只承载本局输赢分；记录者奖励分单独落一行 RoleRecorder。
 		role := model.RoleNeutral
 		basePoints := 0
 
@@ -510,8 +511,6 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 			basePoints = winner.BasePoints
 		} else if _, ok := loserSet[userID]; ok {
 			role = model.RoleLoser
-		} else if userID == req.RecorderID {
-			role = model.RoleRecorder
 		}
 
 		player := &model.GamePlayer{
@@ -566,18 +565,27 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 		winner.FinalPoints = req.Winners[0].BasePoints
 	}
 
+	// 记录者奖励：无论记录者是否在牌桌内，都单独落一条 RoleRecorder 行，避免与输赢分混在一起。
+	// seat 使用 99，避免影响前端按 seat(1-4) 渲染玩家座位。
+	recorderBonus := 0
 	if gameType != model.YunDong {
-		if recorder, ok := playerMap[req.RecorderID]; ok {
-			if recorder.Role == model.RoleNeutral {
-				recorder.Role = model.RoleRecorder
-			}
-			if s.rand.Intn(100) < 1 {
-				recorder.FinalPoints += 20
-			} else {
-				recorder.FinalPoints++
-			}
+		if s.rand.Intn(100) < 1 {
+			recorderBonus = 20
+		} else {
+			recorderBonus = 1
 		}
 	}
+	players = append(players, &model.GamePlayer{
+		GameID:      gameID,
+		UserID:      req.RecorderID,
+		Seat:        99,
+		Role:        model.RoleRecorder,
+		BasePoints:  0,
+		FinalPoints: recorderBonus,
+		IsSettled:   true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	})
 
 	return players, nil
 }
