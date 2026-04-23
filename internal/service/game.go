@@ -496,14 +496,19 @@ func (s *gameService) ensureUsersExist(ctx context.Context, userIDs []int) error
 func (s *gameService) buildGameDTOs(ctx context.Context, games []*model.Game) ([]*model.GameDTO, error) {
 	var result []*model.GameDTO
 	userIDs := make([]int, 0, len(games))
-	recordsByGameID := make(map[int][]*model.GameRecord, len(games))
+	gameIDs := make([]int, 0, len(games))
 	for _, game := range games {
 		userIDs = append(userIDs, game.CreatedBy)
-		records, err := s.gameRepo.FindRecordsByGameID(ctx, game.ID)
-		if err != nil {
-			continue
-		}
-		recordsByGameID[game.ID] = records
+		gameIDs = append(gameIDs, game.ID)
+	}
+
+	recordsByGameID, err := s.gameRepo.FindRecordsByGameIDs(ctx, gameIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, game := range games {
+		records := recordsByGameID[game.ID]
 		for _, record := range records {
 			userIDs = append(userIDs, record.UserID)
 		}

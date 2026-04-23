@@ -19,6 +19,7 @@ type GameRepository interface {
 	// 对局记录相关
 	CreateRecords(ctx context.Context, records []*model.GameRecord) error
 	FindRecordsByGameID(ctx context.Context, gameID int) ([]*model.GameRecord, error)
+	FindRecordsByGameIDs(ctx context.Context, gameIDs []int) (map[int][]*model.GameRecord, error)
 	FindRecordsByUserID(ctx context.Context, userID int, limit int) ([]*model.GameRecord, error)
 
 	// 统计
@@ -111,6 +112,30 @@ func (r *gameRepository) FindRecordsByGameID(ctx context.Context, gameID int) ([
 		}
 	}
 	return records, err
+}
+
+func (r *gameRepository) FindRecordsByGameIDs(ctx context.Context, gameIDs []int) (map[int][]*model.GameRecord, error) {
+	if len(gameIDs) == 0 {
+		return map[int][]*model.GameRecord{}, nil
+	}
+
+	var records []*model.GameRecord
+	err := r.db.WithContext(ctx).
+		Where("game_id IN ?", uniqueInts(gameIDs)).
+		Order("game_id ASC, seat ASC, id ASC").
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+
+	recordsByGameID := make(map[int][]*model.GameRecord, len(gameIDs))
+	for _, record := range records {
+		if err := record.LoadWinTypesFromRaw(); err != nil {
+			return nil, err
+		}
+		recordsByGameID[record.GameID] = append(recordsByGameID[record.GameID], record)
+	}
+	return recordsByGameID, nil
 }
 
 func (r *gameRepository) FindRecordsByUserID(ctx context.Context, userID int, limit int) ([]*model.GameRecord, error) {
