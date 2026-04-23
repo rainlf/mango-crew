@@ -23,3 +23,19 @@ type User struct {
 func (User) TableName() string {
 	return "user"
 }
+
+// UserStatsDelta 单局对用户统计的增量
+type UserStatsDelta struct {
+	PointsDelta int
+	GamesDelta  int
+	WinsDelta   int
+}
+
+// Negate 返回当前增量的反向值，供取消/删除记录时回滚统计使用
+func (d UserStatsDelta) Negate() UserStatsDelta {
+	return UserStatsDelta{
+		PointsDelta: -d.PointsDelta,
+		GamesDelta:  -d.GamesDelta,
+		WinsDelta:   -d.WinsDelta,
+	}
+}

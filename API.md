@@ -205,6 +205,36 @@
 }
 ```
 
+### POST `/api/user/stats/rebuild`
+
+按用户维度重建统计信息。用于运维修数或纠正历史异常数据。
+
+请求体：
+
+```json
+{
+  "user_ids": [1, 2, 3]
+}
+```
+
+说明：
+
+- `user_ids` 可选。
+- 传值时只重建指定用户。
+- 不传或传空数组时，会重建全部用户。
+
+响应示例：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "count": 3
+  }
+}
+```
+
 ## 对局接口
 
 ### POST `/api/game/players`
@@ -467,6 +497,8 @@
 - `user.total_games`：用户总场次
 - `user.win_count`：赢的场次
 - `user.win_rate`：胜率，范围 `0-1`
+- 业务写路径（记局、取消对局）采用增量更新 `user` 表统计字段
+- 运维修数可调用 `POST /api/user/stats/rebuild`，按 `game_record` 聚合重建统计信息
 
 推荐初始化方式：
 

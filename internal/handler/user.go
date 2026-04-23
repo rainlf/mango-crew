@@ -157,6 +157,26 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	response.Success(c, users)
 }
 
+// RebuildUserStats 重建用户统计信息
+func (h *UserHandler) RebuildUserStats(c *gin.Context) {
+	var req model.RebuildUserStatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	count, err := h.userService.RebuildUserStats(c.Request.Context(), req.UserIDs)
+	if err != nil {
+		logger.Error("rebuild user stats failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"count": count,
+	})
+}
+
 // RegisterUserRoutes 注册用户路由
 func RegisterUserRoutes(r *gin.RouterGroup, handler *UserHandler) {
 	userGroup := r.Group("/user")
@@ -166,5 +186,6 @@ func RegisterUserRoutes(r *gin.RouterGroup, handler *UserHandler) {
 		userGroup.POST("/update", handler.UpdateUser)
 		userGroup.GET("/rank", handler.GetUserRank)
 		userGroup.GET("/list", handler.GetAllUsers)
+		userGroup.POST("/stats/rebuild", handler.RebuildUserStats)
 	}
 }

@@ -15,6 +15,7 @@ type UserRepository interface {
 	FindByIDIn(ctx context.Context, ids []int) ([]*model.User, error)
 	FindByOpenID(ctx context.Context, openID string) (*model.User, error)
 	FindAll(ctx context.Context) ([]*model.User, error)
+	ApplyStatsDeltas(ctx context.Context, deltas map[int]model.UserStatsDelta) error
 	RefreshStatsByUserIDs(ctx context.Context, userIDs []int) error
 }
 
@@ -73,6 +74,39 @@ func (r *userRepository) FindAll(ctx context.Context) ([]*model.User, error) {
 	var users []*model.User
 	err := r.db.WithContext(ctx).Find(&users).Error
 	return users, err
+}
+
+func (r *userRepository) ApplyStatsDeltas(ctx context.Context, deltas map[int]model.UserStatsDelta) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for userID, delta := range deltas {
+			result := tx.Model(&model.User{}).
+				Where("id = ?", userID).
+				Where("total_games + ? >= 0", delta.GamesDelta).
+				Where("win_count + ? >= 0", delta.WinsDelta).
+				Updates(map[string]any{
+					"total_points": gorm.Expr("total_points + ?", delta.PointsDelta),
+					"total_games":  gorm.Expr("total_games + ?", delta.GamesDelta),
+					"win_count":    gorm.Expr("win_count + ?", delta.WinsDelta),
+					"win_rate": gorm.Expr(`
+						CASE
+							WHEN total_games + ? <= 0 THEN 0
+							ELSE CAST(win_count + ? AS DECIMAL(8,4)) / CAST(total_games + ? AS DECIMAL(8,4))
+						END
+					`, delta.GamesDelta, delta.WinsDelta, delta.GamesDelta),
+				})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return gorm.ErrRecordNotFound
+			}
+		}
+		return nil
+	})
 }
 
 func (r *userRepository) RefreshStatsByUserIDs(ctx context.Context, userIDs []int) error {

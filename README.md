@@ -159,7 +159,8 @@ curl http://localhost:8080/api/health
 - `game_record.role` 记录玩家角色：赢家、输家、记录者、参与者。
 - `final_points` 由基础分和番型倍数计算得出。
 - 用户统计字段冗余存储在 `user.total_points`、`user.total_games`、`user.win_count`、`user.win_rate` 中。
-- 已记录榜单和用户统计只统计 `已结算` 且未取消的对局，对局新增或取消后会按受影响用户重算并回写到 `user` 表。
+- 已记录榜单和用户统计只统计 `已结算` 且未取消的对局，对局新增或取消后会按本次对局增量直接更新 `user` 表。
+- 如需修正历史数据，可调用 `POST /api/user/stats/rebuild` 按 `game_record` 聚合重建指定用户或全部用户的统计信息。
 - 番型字典 hardcode 在代码中，赢家番型明细直接存放在 `game_record.win_types`。
 
 ## 接口概览
@@ -169,7 +170,7 @@ curl http://localhost:8080/api/health
 | 模块 | 接口 |
 | --- | --- |
 | 健康检查 | `GET /api/health` |
-| 用户 | `GET /api/user/login`、`GET /api/user/info`、`POST /api/user/update`、`GET /api/user/rank`、`GET /api/user/list` |
+| 用户 | `GET /api/user/login`、`GET /api/user/info`、`POST /api/user/update`、`GET /api/user/rank`、`GET /api/user/list`、`POST /api/user/stats/rebuild` |
 | 对局 | `POST /api/game/record`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
 
 ## 请求约定

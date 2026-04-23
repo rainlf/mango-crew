@@ -24,6 +24,7 @@ type UserService interface {
 	UpdateUser(ctx context.Context, userID int, req *model.UpdateUserRequest) (*model.User, error)
 	GetUserRank(ctx context.Context) ([]*model.UserWithStatsDTO, error)
 	GetAllUsers(ctx context.Context) ([]*model.UserDTO, error)
+	RebuildUserStats(ctx context.Context, userIDs []int) (int, error)
 }
 
 // userService 用户服务实现
@@ -196,6 +197,33 @@ func (s *userService) GetAllUsers(ctx context.Context) ([]*model.UserDTO, error)
 
 	s.setCache(ctx, cacheKey, dtos, s.cfg.Redis.UserTTL())
 	return dtos, nil
+}
+
+func (s *userService) RebuildUserStats(ctx context.Context, userIDs []int) (int, error) {
+	targetIDs := uniqueInts(userIDs)
+	if len(targetIDs) == 0 {
+		users, err := s.userRepo.FindAll(ctx)
+		if err != nil {
+			return 0, err
+		}
+		targetIDs = make([]int, 0, len(users))
+		for _, user := range users {
+			targetIDs = append(targetIDs, user.ID)
+		}
+	}
+
+	if len(targetIDs) == 0 {
+		return 0, nil
+	}
+
+	if err := s.userRepo.RefreshStatsByUserIDs(ctx, targetIDs); err != nil {
+		return 0, err
+	}
+
+	s.deleteCache(ctx, s.rankCacheKey(), s.allUsersCacheKey())
+	s.deleteCacheByPrefix(ctx, "user:stats:")
+
+	return len(targetIDs), nil
 }
 
 // decodeBase64Avatar 解码base64头像（如果需要）

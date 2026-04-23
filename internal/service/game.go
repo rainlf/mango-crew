@@ -124,8 +124,9 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 	}
 
 	affectedUserIDs := append([]int{req.RecorderID}, currentPlayerIDs...)
-	if err := s.userRepo.RefreshStatsByUserIDs(ctx, affectedUserIDs); err != nil {
-		return nil, fmt.Errorf("refresh user stats failed: %w", err)
+	deltas := buildUserStatsDeltas(records)
+	if err := s.userRepo.ApplyStatsDeltas(ctx, deltas); err != nil {
+		return nil, fmt.Errorf("apply user stats delta failed: %w", err)
 	}
 	s.invalidateGameCaches(ctx, affectedUserIDs...)
 
@@ -133,15 +134,30 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 }
 
 func (s *gameService) CancelGame(ctx context.Context, gameID int) error {
+	game, err := s.gameRepo.FindByID(ctx, gameID)
+	if err != nil {
+		return err
+	}
+	if game.Status == model.GameStatusCanceled {
+		return nil
+	}
+
 	affectedUserIDs, err := s.loadGameRelatedUserIDs(ctx, gameID)
 	if err != nil {
 		logger.Warn("load game users before cancel failed", logger.Int("game_id", gameID), logger.Err(err))
 	}
+	records, err := s.gameRepo.FindRecordsByGameID(ctx, gameID)
+	if err != nil {
+		return err
+	}
 	if err := s.gameRepo.CancelGame(ctx, gameID); err != nil {
 		return err
 	}
-	if err := s.userRepo.RefreshStatsByUserIDs(ctx, affectedUserIDs); err != nil {
-		return fmt.Errorf("refresh user stats failed: %w", err)
+	if game.Status == model.GameStatusSettled {
+		deltas := negateUserStatsDeltas(buildUserStatsDeltas(records))
+		if err := s.userRepo.ApplyStatsDeltas(ctx, deltas); err != nil {
+			return fmt.Errorf("apply user stats delta failed: %w", err)
+		}
 	}
 	s.invalidateGameCaches(ctx, affectedUserIDs...)
 	return nil
@@ -607,6 +623,40 @@ func uniqueInts(ids []int) []int {
 		}
 		seen[id] = struct{}{}
 		result = append(result, id)
+	}
+	return result
+}
+
+func buildUserStatsDeltas(records []*model.GameRecord) map[int]model.UserStatsDelta {
+	if len(records) == 0 {
+		return map[int]model.UserStatsDelta{}
+	}
+
+	deltas := make(map[int]model.UserStatsDelta, len(records))
+	gameCounted := make(map[int]struct{}, len(records))
+	for _, record := range records {
+		delta := deltas[record.UserID]
+		delta.PointsDelta += record.FinalPoints
+		if _, ok := gameCounted[record.UserID]; !ok {
+			delta.GamesDelta++
+			gameCounted[record.UserID] = struct{}{}
+		}
+		if record.Role == model.RoleWinner {
+			delta.WinsDelta++
+		}
+		deltas[record.UserID] = delta
+	}
+	return deltas
+}
+
+func negateUserStatsDeltas(deltas map[int]model.UserStatsDelta) map[int]model.UserStatsDelta {
+	if len(deltas) == 0 {
+		return map[int]model.UserStatsDelta{}
+	}
+
+	result := make(map[int]model.UserStatsDelta, len(deltas))
+	for userID, delta := range deltas {
+		result[userID] = delta.Negate()
 	}
 	return result
 }

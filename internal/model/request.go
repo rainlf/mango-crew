@@ -14,6 +14,11 @@ type UpdateUserRequest struct {
 	Avatar   string `json:"avatar"` // base64编码的图片
 }
 
+// RebuildUserStatsRequest 重建用户统计请求
+type RebuildUserStatsRequest struct {
+	UserIDs []int `json:"user_ids"`
+}
+
 // UpdateCurrentPlayersRequest 更新当前牌桌玩家
 type UpdateCurrentPlayersRequest struct {
 	UserID  int   `json:"user_id" binding:"required"`
