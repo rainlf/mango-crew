@@ -2,9 +2,12 @@ package repository
 
 import (
 	"context"
+	"sort"
+	"strings"
 
 	"github.com/rainlf/mango-crew/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // UserRepository 用户数据访问接口
@@ -22,6 +25,13 @@ type UserRepository interface {
 // userRepository 用户数据访问实现
 type userRepository struct {
 	db *gorm.DB
+}
+
+type userStatsValues struct {
+	TotalPoints int
+	TotalGames  int
+	WinCount    int
+	WinRate     float64
 }
 
 // NewUserRepository 创建用户仓库实例
@@ -81,29 +91,49 @@ func (r *userRepository) ApplyStatsDeltas(ctx context.Context, deltas map[int]mo
 		return nil
 	}
 
+	uniqueIDs := make([]int, 0, len(deltas))
+	for userID := range deltas {
+		uniqueIDs = append(uniqueIDs, userID)
+	}
+	sort.Ints(uniqueIDs)
+
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for userID, delta := range deltas {
-			result := tx.Model(&model.User{}).
-				Where("id = ?", userID).
-				Where("total_games + ? >= 0", delta.GamesDelta).
-				Where("win_count + ? >= 0", delta.WinsDelta).
-				Updates(map[string]any{
-					"total_points": gorm.Expr("total_points + ?", delta.PointsDelta),
-					"total_games":  gorm.Expr("total_games + ?", delta.GamesDelta),
-					"win_count":    gorm.Expr("win_count + ?", delta.WinsDelta),
-					"win_rate": gorm.Expr(`
-						CASE
-							WHEN total_games + ? <= 0 THEN 0
-							ELSE CAST(win_count + ? AS DECIMAL(8,4)) / CAST(total_games + ? AS DECIMAL(8,4))
-						END
-					`, delta.GamesDelta, delta.WinsDelta, delta.GamesDelta),
-				})
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected == 0 {
+		var users []*model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id IN ?", uniqueIDs).
+			Find(&users).Error; err != nil {
+			return err
+		}
+		if len(users) != len(uniqueIDs) {
+			return gorm.ErrRecordNotFound
+		}
+
+		updates := make(map[int]userStatsValues, len(users))
+		for _, user := range users {
+			delta := deltas[user.ID]
+			totalPoints := user.TotalPoints + delta.PointsDelta
+			totalGames := user.TotalGames + delta.GamesDelta
+			winCount := user.WinCount + delta.WinsDelta
+
+			if totalGames < 0 || winCount < 0 {
 				return gorm.ErrRecordNotFound
 			}
+
+			winRate := 0.0
+			if totalGames > 0 {
+				winRate = float64(winCount) / float64(totalGames)
+			}
+
+			updates[user.ID] = userStatsValues{
+				TotalPoints: totalPoints,
+				TotalGames:  totalGames,
+				WinCount:    winCount,
+				WinRate:     winRate,
+			}
+		}
+
+		if err := r.bulkUpdateUserStats(tx, updates); err != nil {
+			return err
 		}
 		return nil
 	})
@@ -152,6 +182,7 @@ func (r *userRepository) RefreshStatsByUserIDs(ctx context.Context, userIDs []in
 	}
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		updates := make(map[int]userStatsValues, len(uniqueIDs))
 		for _, userID := range uniqueIDs {
 			row, ok := statsByUserID[userID]
 			if !ok {
@@ -163,19 +194,65 @@ func (r *userRepository) RefreshStatsByUserIDs(ctx context.Context, userIDs []in
 				winRate = float64(row.WinCount) / float64(row.TotalGames)
 			}
 
-			if err := tx.Model(&model.User{}).
-				Where("id = ?", userID).
-				Updates(map[string]any{
-					"total_points": row.TotalPoints,
-					"total_games":  row.TotalGames,
-					"win_count":    row.WinCount,
-					"win_rate":     winRate,
-				}).Error; err != nil {
-				return err
+			updates[userID] = userStatsValues{
+				TotalPoints: row.TotalPoints,
+				TotalGames:  row.TotalGames,
+				WinCount:    row.WinCount,
+				WinRate:     winRate,
 			}
+		}
+
+		if err := r.bulkUpdateUserStats(tx, updates); err != nil {
+			return err
 		}
 		return nil
 	})
+}
+
+func (r *userRepository) bulkUpdateUserStats(tx *gorm.DB, updates map[int]userStatsValues) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	ids := make([]int, 0, len(updates))
+	for userID := range updates {
+		ids = append(ids, userID)
+	}
+	sort.Ints(ids)
+
+	args := make([]any, 0, len(ids)*12)
+	var sql strings.Builder
+	sql.WriteString("UPDATE user SET ")
+	appendCaseClause(&sql, &args, "total_points", ids, updates, func(v userStatsValues) any { return v.TotalPoints })
+	sql.WriteString(", ")
+	appendCaseClause(&sql, &args, "total_games", ids, updates, func(v userStatsValues) any { return v.TotalGames })
+	sql.WriteString(", ")
+	appendCaseClause(&sql, &args, "win_count", ids, updates, func(v userStatsValues) any { return v.WinCount })
+	sql.WriteString(", ")
+	appendCaseClause(&sql, &args, "win_rate", ids, updates, func(v userStatsValues) any { return v.WinRate })
+	sql.WriteString(" WHERE id IN (")
+	for idx, userID := range ids {
+		if idx > 0 {
+			sql.WriteString(", ")
+		}
+		sql.WriteString("?")
+		args = append(args, userID)
+	}
+	sql.WriteString(")")
+
+	return tx.Exec(sql.String(), args...).Error
+}
+
+func appendCaseClause(builder *strings.Builder, args *[]any, column string, ids []int, updates map[int]userStatsValues, valueFn func(userStatsValues) any) {
+	builder.WriteString(column)
+	builder.WriteString(" = CASE id")
+	for _, userID := range ids {
+		builder.WriteString(" WHEN ? THEN ?")
+		*args = append(*args, userID, valueFn(updates[userID]))
+	}
+	builder.WriteString(" ELSE ")
+	builder.WriteString(column)
+	builder.WriteString(" END")
 }
 
 func uniqueInts(ids []int) []int {
