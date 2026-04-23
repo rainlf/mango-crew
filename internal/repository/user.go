@@ -128,9 +128,9 @@ func (r *userRepository) RefreshStatsByUserIDs(ctx context.Context, userIDs []in
 		Select(`
 			u.id AS user_id,
 			COALESCE(SUM(CASE WHEN g.id IS NOT NULL THEN gr.final_points ELSE 0 END), 0) AS total_points,
-			COUNT(DISTINCT CASE WHEN g.id IS NOT NULL THEN g.id END) AS total_games,
+			COUNT(DISTINCT CASE WHEN g.id IS NOT NULL AND gr.role <> ? THEN g.id END) AS total_games,
 			COALESCE(SUM(CASE WHEN g.id IS NOT NULL AND gr.role = ? THEN 1 ELSE 0 END), 0) AS win_count
-		`, model.RoleWinner).
+		`, model.RoleRecorder, model.RoleWinner).
 		Joins("LEFT JOIN game_record AS gr ON gr.user_id = u.id").
 		Joins("LEFT JOIN game AS g ON g.id = gr.game_id AND g.status = ?", model.GameStatusSettled).
 		Where("u.id IN ?", uniqueIDs).

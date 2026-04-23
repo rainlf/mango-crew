@@ -637,9 +637,11 @@ func buildUserStatsDeltas(records []*model.GameRecord) map[int]model.UserStatsDe
 	for _, record := range records {
 		delta := deltas[record.UserID]
 		delta.PointsDelta += record.FinalPoints
-		if _, ok := gameCounted[record.UserID]; !ok {
-			delta.GamesDelta++
-			gameCounted[record.UserID] = struct{}{}
+		if shouldCountRecordAsGameParticipation(record) {
+			if _, ok := gameCounted[record.UserID]; !ok {
+				delta.GamesDelta++
+				gameCounted[record.UserID] = struct{}{}
+			}
 		}
 		if record.Role == model.RoleWinner {
 			delta.WinsDelta++
@@ -647,6 +649,14 @@ func buildUserStatsDeltas(records []*model.GameRecord) map[int]model.UserStatsDe
 		deltas[record.UserID] = delta
 	}
 	return deltas
+}
+
+func shouldCountRecordAsGameParticipation(record *model.GameRecord) bool {
+	if record == nil {
+		return false
+	}
+	// 记录人奖励行只记奖励分，不代表实际参赛。
+	return record.Role != model.RoleRecorder
 }
 
 func negateUserStatsDeltas(deltas map[int]model.UserStatsDelta) map[int]model.UserStatsDelta {
