@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/rainlf/mango-crew/internal/model"
 	"gorm.io/gorm"
@@ -15,7 +14,6 @@ type GameRepository interface {
 	FindByID(ctx context.Context, id int) (*model.Game, error)
 	FindRecentGames(ctx context.Context, limit, offset int) ([]*model.Game, error)
 	FindGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error)
-	SettleGame(ctx context.Context, id int) error
 	CancelGame(ctx context.Context, id int) error
 
 	// 对局记录相关
@@ -80,23 +78,6 @@ func (r *gameRepository) FindGamesByUser(ctx context.Context, userID int, limit,
 		Offset(offset).
 		Find(&games).Error
 	return games, err
-}
-
-func (r *gameRepository) SettleGame(ctx context.Context, id int) error {
-	now := time.Now()
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.Game{}).
-			Where("id = ?", id).
-			Updates(map[string]any{
-				"status":     model.GameStatusSettled,
-				"settled_at": now,
-			}).Error; err != nil {
-			return err
-		}
-		return tx.Model(&model.GameRecord{}).
-			Where("game_id = ?", id).
-			Update("is_settled", true).Error
-	})
 }
 
 func (r *gameRepository) CancelGame(ctx context.Context, id int) error {

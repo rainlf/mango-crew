@@ -21,7 +21,6 @@ type GameService interface {
 
 	CreateGame(ctx context.Context, userID int, req *model.CreateGameRequest) (*model.Game, error)
 	RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error)
-	SettleGame(ctx context.Context, gameID int) error
 	CancelGame(ctx context.Context, gameID int) error
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
 	GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
@@ -201,18 +200,6 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 	s.invalidateGameCaches(ctx, affectedUserIDs...)
 
 	return game, nil
-}
-
-func (s *gameService) SettleGame(ctx context.Context, gameID int) error {
-	affectedUserIDs, err := s.loadGameRelatedUserIDs(ctx, gameID)
-	if err != nil {
-		logger.Warn("load game users before settle failed", logger.Int("game_id", gameID), logger.Err(err))
-	}
-	if err := s.gameRepo.SettleGame(ctx, gameID); err != nil {
-		return err
-	}
-	s.invalidateGameCaches(ctx, affectedUserIDs...)
-	return nil
 }
 
 func (s *gameService) CancelGame(ctx context.Context, gameID int) error {

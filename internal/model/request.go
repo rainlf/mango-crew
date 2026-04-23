@@ -19,11 +19,6 @@ type GamePlayerRequest struct {
 	WinTypes   []string `json:"win_types"`                           // 番型code列表
 }
 
-// SettleGameRequest 结算游戏请求
-type SettleGameRequest struct {
-	GameID int `json:"game_id" binding:"required"`
-}
-
 // CancelGameRequest 取消游戏请求
 type CancelGameRequest struct {
 	GameID int `json:"game_id" binding:"required"`

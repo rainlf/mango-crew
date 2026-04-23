@@ -169,7 +169,7 @@ curl http://localhost:8080/api/health
 | --- | --- |
 | 健康检查 | `GET /api/health` |
 | 用户 | `GET /api/user/login`、`GET /api/user/info`、`POST /api/user/update`、`GET /api/user/rank`、`GET /api/user/list` |
-| 对局 | `POST /api/game`、`POST /api/game/record`、`POST /api/game/settle`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
+| 对局 | `POST /api/game`、`POST /api/game/record`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
 
 ## 请求约定
 

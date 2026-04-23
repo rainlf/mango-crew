@@ -362,28 +362,6 @@
 }
 ```
 
-### POST `/api/game/settle`
-
-结算一盘对局。
-
-请求体：
-
-```json
-{
-  "game_id": 1
-}
-```
-
-响应示例：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": null
-}
-```
-
 ### POST `/api/game/cancel`
 
 取消一盘对局。

@@ -40,23 +40,6 @@ func (h *GameHandler) CreateGame(c *gin.Context) {
 	response.Success(c, game)
 }
 
-// SettleGame 结算游戏
-func (h *GameHandler) SettleGame(c *gin.Context) {
-	var req model.SettleGameRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	if err := h.gameService.SettleGame(c.Request.Context(), req.GameID); err != nil {
-		logger.Error("settle game failed", logger.Err(err))
-		response.Error(c, 1, err.Error())
-		return
-	}
-
-	response.Success(c, nil)
-}
-
 // CancelGame 取消游戏
 func (h *GameHandler) CancelGame(c *gin.Context) {
 	var req model.CancelGameRequest
@@ -194,7 +177,6 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 	{
 		gameGroup.POST("", handler.CreateGame)
 		gameGroup.POST("/record", handler.RecordMaJiangGame)
-		gameGroup.POST("/settle", handler.SettleGame)
 		gameGroup.POST("/cancel", handler.CancelGame)
 		gameGroup.POST("/players", handler.UpdateCurrentPlayers)
 		gameGroup.GET("/user/list", handler.GetGamesByUser)
