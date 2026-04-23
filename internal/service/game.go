@@ -17,9 +17,8 @@ import (
 
 // GameService 游戏服务接口
 type GameService interface {
-	UpdateCurrentPlayers(ctx context.Context, userID int, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error)
+	UpdateCurrentPlayers(ctx context.Context, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error)
 
-	CreateGame(ctx context.Context, userID int, req *model.CreateGameRequest) (*model.Game, error)
 	RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error)
 	CancelGame(ctx context.Context, gameID int) error
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
@@ -50,7 +49,10 @@ func NewGameService(currentPlayerRepo repository.CurrentPlayerRepository, gameRe
 	}
 }
 
-func (s *gameService) UpdateCurrentPlayers(ctx context.Context, _ int, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error) {
+func (s *gameService) UpdateCurrentPlayers(ctx context.Context, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error) {
+	if err := s.ensureUsersExist(ctx, []int{req.UserID}); err != nil {
+		return nil, err
+	}
 	userIDs, err := s.normalizeCurrentPlayerIDs(req.UserIDs)
 	if err != nil {
 		return nil, err
@@ -63,81 +65,6 @@ func (s *gameService) UpdateCurrentPlayers(ctx context.Context, _ int, req *mode
 	}
 	s.invalidatePlayerCaches(ctx)
 	return s.GetPlayers(ctx)
-}
-
-// Game 相关
-
-func (s *gameService) CreateGame(ctx context.Context, userID int, req *model.CreateGameRequest) (*model.Game, error) {
-	// 验证请求
-	if err := s.validateCreateGameRequest(req); err != nil {
-		return nil, err
-	}
-
-	gameType := model.GameTypeFromCode(req.GameType)
-
-	// 创建游戏记录
-	game := &model.Game{
-		Type:      gameType,
-		Status:    model.GameStatusPending,
-		Remark:    req.Remark,
-		CreatedBy: userID,
-		CreatedAt: time.Now(),
-	}
-
-	if err := s.gameRepo.Create(ctx, game); err != nil {
-		return nil, fmt.Errorf("create game failed: %w", err)
-	}
-
-	// 创建玩家记录
-	records := make([]*model.GameRecord, 0, len(req.Players))
-	for _, p := range req.Players {
-		record := &model.GameRecord{
-			GameID:     game.ID,
-			UserID:     p.UserID,
-			Seat:       p.Seat,
-			Role:       model.PlayerRole(p.Role),
-			BasePoints: p.BasePoints,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		// 处理番型
-		if len(p.WinTypes) > 0 {
-			record.WinTypes = make([]*model.GameRecordWinType, 0, len(p.WinTypes))
-			for _, wtCode := range p.WinTypes {
-				if wt, ok := model.ResolveWinType(wtCode); ok {
-					record.WinTypes = append(record.WinTypes, &model.GameRecordWinType{
-						WinTypeCode: wt.Code,
-						Multiplier:  wt.BaseMulti,
-					})
-				}
-			}
-		}
-
-		// 计算最终分数
-		record.CalculatePoints()
-		records = append(records, record)
-	}
-
-	// 记录者加分逻辑
-	for _, record := range records {
-		if record.Role == model.RoleRecorder && gameType != model.YunDong {
-			// 1% 概率加 20 分，99% 概率加 1 分
-			if s.rand.Intn(100) < 1 {
-				record.FinalPoints = 20
-			} else {
-				record.FinalPoints = 1
-			}
-		}
-	}
-
-	if err := s.gameRepo.CreateRecords(ctx, records); err != nil {
-		return nil, fmt.Errorf("create game records failed: %w", err)
-	}
-
-	s.invalidateGameCaches(ctx, append(extractPlayerIDsFromCreateReq(req), userID)...)
-
-	return game, nil
 }
 
 func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error) {
@@ -197,6 +124,9 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 	}
 
 	affectedUserIDs := append([]int{req.RecorderID}, currentPlayerIDs...)
+	if err := s.userRepo.RefreshStatsByUserIDs(ctx, affectedUserIDs); err != nil {
+		return nil, fmt.Errorf("refresh user stats failed: %w", err)
+	}
 	s.invalidateGameCaches(ctx, affectedUserIDs...)
 
 	return game, nil
@@ -209,6 +139,9 @@ func (s *gameService) CancelGame(ctx context.Context, gameID int) error {
 	}
 	if err := s.gameRepo.CancelGame(ctx, gameID); err != nil {
 		return err
+	}
+	if err := s.userRepo.RefreshStatsByUserIDs(ctx, affectedUserIDs); err != nil {
+		return fmt.Errorf("refresh user stats failed: %w", err)
 	}
 	s.invalidateGameCaches(ctx, affectedUserIDs...)
 	return nil
@@ -296,35 +229,6 @@ func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, 
 
 	s.setCache(ctx, cacheKey, dto, s.cfg.Redis.PlayerTTL())
 	return dto, nil
-}
-
-// 辅助方法
-
-func (s *gameService) validateCreateGameRequest(req *model.CreateGameRequest) error {
-	gameType := model.GameTypeFromCode(req.GameType)
-
-	// 验证玩家数量
-	isSportType := gameType == model.YunDong
-	if isSportType && len(req.Players) != 1 {
-		return errors.New("运动类型只能有1个玩家")
-	}
-	if !isSportType && len(req.Players) < 2 {
-		return errors.New("非运动类型至少需要2个玩家")
-	}
-
-	// 验证有赢家
-	hasWinner := false
-	for _, p := range req.Players {
-		if p.Role == 1 { // Winner
-			hasWinner = true
-			break
-		}
-	}
-	if !hasWinner {
-		return errors.New("至少需要一个赢家")
-	}
-
-	return nil
 }
 
 func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequest, currentPlayerIDs []int, gameType model.GameType) error {
@@ -768,12 +672,4 @@ func (s *gameService) deleteCacheByPrefix(ctx context.Context, prefixes ...strin
 	if err := s.cache.DeleteByPrefix(ctx, prefixes...); err != nil {
 		logger.Warn("delete cache by prefix failed", logger.Any("prefixes", prefixes), logger.Err(err))
 	}
-}
-
-func extractPlayerIDsFromCreateReq(req *model.CreateGameRequest) []int {
-	userIDs := make([]int, 0, len(req.Players))
-	for _, player := range req.Players {
-		userIDs = append(userIDs, player.UserID)
-	}
-	return userIDs
 }

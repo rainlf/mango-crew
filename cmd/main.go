@@ -87,7 +87,7 @@ func main() {
 	gameRepo := repository.NewGameRepository(db)
 
 	// 初始化服务
-	userService := service.NewUserService(userRepo, gameRepo, cacheStore, cfg, cfg.Wechat, wechatAppID, wechatAppSecret)
+	userService := service.NewUserService(userRepo, cacheStore, cfg, cfg.Wechat, wechatAppID, wechatAppSecret)
 	gameService := service.NewGameService(currentPlayerRepo, gameRepo, userRepo, cacheStore, cfg)
 
 	// 初始化处理器

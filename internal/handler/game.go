@@ -20,26 +20,6 @@ func NewGameHandler(gameService service.GameService) *GameHandler {
 	return &GameHandler{gameService: gameService}
 }
 
-// CreateGame 创建游戏
-func (h *GameHandler) CreateGame(c *gin.Context) {
-	var req model.CreateGameRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "请求参数错误: "+err.Error())
-		return
-	}
-
-	userID := getCurrentUserID(c)
-
-	game, err := h.gameService.CreateGame(c.Request.Context(), userID, &req)
-	if err != nil {
-		logger.Error("create game failed", logger.Err(err))
-		response.Error(c, 1, err.Error())
-		return
-	}
-
-	response.Success(c, game)
-}
-
 // CancelGame 取消游戏
 func (h *GameHandler) CancelGame(c *gin.Context) {
 	var req model.CancelGameRequest
@@ -103,8 +83,7 @@ func (h *GameHandler) UpdateCurrentPlayers(c *gin.Context) {
 		return
 	}
 
-	userID := getCurrentUserID(c)
-	players, err := h.gameService.UpdateCurrentPlayers(c.Request.Context(), userID, &req)
+	players, err := h.gameService.UpdateCurrentPlayers(c.Request.Context(), &req)
 	if err != nil {
 		logger.Error("update current players failed", logger.Err(err))
 		response.Error(c, 1, err.Error())
@@ -175,7 +154,6 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 	// 游戏相关
 	gameGroup := r.Group("/game")
 	{
-		gameGroup.POST("", handler.CreateGame)
 		gameGroup.POST("/record", handler.RecordMaJiangGame)
 		gameGroup.POST("/cancel", handler.CancelGame)
 		gameGroup.POST("/players", handler.UpdateCurrentPlayers)
@@ -183,19 +161,4 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 		gameGroup.GET("/recent", handler.GetRecentGames)
 		gameGroup.GET("/players", handler.GetPlayers)
 	}
-}
-
-// getCurrentUserID 从上下文获取当前用户ID
-// 实际应该从JWT或Session中获取，这里简化处理
-func getCurrentUserID(c *gin.Context) int {
-	// 从查询参数或Header中获取
-	userIDStr := c.GetHeader("X-User-ID")
-	if userIDStr == "" {
-		userIDStr = c.Query("userId")
-	}
-	if userIDStr == "" {
-		return 0
-	}
-	userID, _ := strconv.Atoi(userIDStr)
-	return userID
 }

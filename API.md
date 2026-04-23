@@ -123,7 +123,8 @@
     "avatar_url": "https://example.com/avatar.jpg",
     "total_points": 150,
     "total_games": 20,
-    "win_count": 8
+    "win_count": 8,
+    "win_rate": 0.4
   }
 }
 ```
@@ -177,7 +178,8 @@
       "avatar_url": "",
       "total_points": 200,
       "total_games": 25,
-      "win_count": 10
+      "win_count": 10,
+      "win_rate": 0.4
     }
   ]
 }
@@ -204,64 +206,6 @@
 ```
 
 ## 对局接口
-
-### POST `/api/game`
-
-创建一盘对局记录。
-
-请求头或参数：
-
-| 参数 | 位置 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `X-User-ID` | header | 否 | 当前用户 ID，建议传递 |
-| `userId` | query | 否 | 当前用户 ID，未传 Header 时可用 |
-
-请求体：
-
-```json
-{
-  "game_type": 2,
-  "remark": "清一色自摸",
-  "players": [
-    {
-      "user_id": 1,
-      "seat": 1,
-      "role": 1,
-      "base_points": 10,
-      "win_types": ["qing_yi_se"]
-    },
-    {
-      "user_id": 2,
-      "seat": 2,
-      "role": 2
-    }
-  ]
-}
-```
-
-字段说明：
-
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| `game_type` | 是 | 游戏类型，见上方枚举 |
-| `remark` | 否 | 备注，最长 200 字符 |
-| `players` | 是 | 玩家列表 |
-
-`players` 子项说明：
-
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| `user_id` | 是 | 用户 ID |
-| `seat` | 是 | 座位号，范围 1-4 |
-| `role` | 是 | 玩家角色 |
-| `base_points` | 否 | 基础分 |
-| `win_types` | 否 | 番型 code 数组 |
-
-校验规则：
-
-- `game_type=6`（运动）时，`players` 必须只有 1 人。
-- 非运动类型至少需要 2 名玩家。
-- 必须至少存在 1 名 `role=1` 的赢家。
 
 ### POST `/api/game/players`
 
@@ -517,6 +461,13 @@
 | `game` | 单盘对局 |
 | `game_record` | 每盘对局的记录明细，内含赢家番型 JSON |
 
+用户统计字段说明：
+
+- `user.total_points`：用户总分
+- `user.total_games`：用户总场次
+- `user.win_count`：赢的场次
+- `user.win_rate`：胜率，范围 `0-1`
+
 推荐初始化方式：
 
 ```bash
@@ -527,4 +478,3 @@ mysql -uroot -p mango_crew < migrations/init.sql
 
 - 目前没有实现 `/api/win-type/list`、`/api/game/detail`、`/api/game/stats` 等接口。
 - `POST /api/user/update` 会读取头像字段，但不会真正上传图片。
-- `POST /api/game` 如果未传用户 ID，创建者会落成 `0`。

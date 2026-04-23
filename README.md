@@ -158,7 +158,8 @@ curl http://localhost:8080/api/health
 - `game.type` 记录对局类型：平胡、自摸、一炮双响、一炮三响、相公、运动。
 - `game_record.role` 记录玩家角色：赢家、输家、记录者、参与者。
 - `final_points` 由基础分和番型倍数计算得出。
-- 已记录榜单和用户统计只统计 `已结算` 且未取消的对局。
+- 用户统计字段冗余存储在 `user.total_points`、`user.total_games`、`user.win_count`、`user.win_rate` 中。
+- 已记录榜单和用户统计只统计 `已结算` 且未取消的对局，对局新增或取消后会按受影响用户重算并回写到 `user` 表。
 - 番型字典 hardcode 在代码中，赢家番型明细直接存放在 `game_record.win_types`。
 
 ## 接口概览
@@ -169,7 +170,7 @@ curl http://localhost:8080/api/health
 | --- | --- |
 | 健康检查 | `GET /api/health` |
 | 用户 | `GET /api/user/login`、`GET /api/user/info`、`POST /api/user/update`、`GET /api/user/rank`、`GET /api/user/list` |
-| 对局 | `POST /api/game`、`POST /api/game/record`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
+| 对局 | `POST /api/game/record`、`POST /api/game/cancel`、`POST /api/game/players`、`GET /api/game/user/list`、`GET /api/game/recent`、`GET /api/game/players` |
 
 ## 请求约定
 

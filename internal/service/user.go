@@ -29,7 +29,6 @@ type UserService interface {
 // userService 用户服务实现
 type userService struct {
 	userRepo   repository.UserRepository
-	gameRepo   repository.GameRepository
 	cache      *cache.Store
 	cfg        *config.Config
 	httpClient *http.Client
@@ -39,10 +38,9 @@ type userService struct {
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
+func NewUserService(userRepo repository.UserRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
 	return &userService{
 		userRepo:   userRepo,
-		gameRepo:   gameRepo,
 		cache:      cacheStore,
 		cfg:        cfg,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -123,28 +121,7 @@ func (s *userService) GetUserByID(ctx context.Context, id int) (*model.UserWithS
 		return nil, err
 	}
 
-	// 实时计算统计数据
-	totalPoints, err := s.gameRepo.SumPlayerPoints(ctx, id)
-	if err != nil {
-		logger.Warn("sum player points failed", logger.Err(err), logger.Int("user_id", id))
-	}
-
-	totalGames, err := s.gameRepo.CountPlayerGames(ctx, id)
-	if err != nil {
-		logger.Warn("count player games failed", logger.Err(err), logger.Int("user_id", id))
-	}
-
-	winCount, err := s.gameRepo.CountPlayerWins(ctx, id)
-	if err != nil {
-		logger.Warn("count player wins failed", logger.Err(err), logger.Int("user_id", id))
-	}
-
-	result := &model.UserWithStatsDTO{
-		UserDTO:     (&model.UserDTO{}).FromUser(user),
-		TotalPoints: totalPoints,
-		TotalGames:  int(totalGames),
-		WinCount:    int(winCount),
-	}
+	result := (&model.UserWithStatsDTO{}).FromUser(user)
 	s.setCache(ctx, cacheKey, result, s.cfg.Redis.UserTTL())
 	return result, nil
 }
@@ -186,19 +163,13 @@ func (s *userService) GetUserRank(ctx context.Context) ([]*model.UserWithStatsDT
 
 	var result []*model.UserWithStatsDTO
 	for _, user := range users {
-		totalPoints, _ := s.gameRepo.SumPlayerPoints(ctx, user.ID)
-		totalGames, _ := s.gameRepo.CountPlayerGames(ctx, user.ID)
-		winCount, _ := s.gameRepo.CountPlayerWins(ctx, user.ID)
-
-		result = append(result, &model.UserWithStatsDTO{
-			UserDTO:     (&model.UserDTO{}).FromUser(user),
-			TotalPoints: totalPoints,
-			TotalGames:  int(totalGames),
-			WinCount:    int(winCount),
-		})
+		result = append(result, (&model.UserWithStatsDTO{}).FromUser(user))
 	}
 
 	sort.Slice(result, func(i, j int) bool {
+		if result[i].TotalPoints == result[j].TotalPoints {
+			return result[i].WinRate > result[j].WinRate
+		}
 		return result[i].TotalPoints > result[j].TotalPoints
 	})
 

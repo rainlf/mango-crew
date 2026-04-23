@@ -22,10 +22,25 @@ func (dto *UserDTO) FromUser(user *User) *UserDTO {
 // UserWithStatsDTO 带统计信息的用户DTO
 type UserWithStatsDTO struct {
 	*UserDTO
-	TotalPoints int      `json:"total_points"` // 实时计算的总积分
+	TotalPoints int      `json:"total_points"` // 用户总积分
 	TotalGames  int      `json:"total_games"`  // 参与游戏数
 	WinCount    int      `json:"win_count"`    // 赢的次数
+	WinRate     float64  `json:"win_rate"`     // 胜率，范围 0-1
 	Tags        []string `json:"tags,omitempty"`
+}
+
+// FromUser 从 User 创建带统计信息 DTO
+func (dto *UserWithStatsDTO) FromUser(user *User) *UserWithStatsDTO {
+	if user == nil {
+		return nil
+	}
+	return &UserWithStatsDTO{
+		UserDTO:     (&UserDTO{}).FromUser(user),
+		TotalPoints: user.TotalPoints,
+		TotalGames:  user.TotalGames,
+		WinCount:    user.WinCount,
+		WinRate:     user.WinRate,
+	}
 }
 
 // GameDTO 游戏记录DTO
