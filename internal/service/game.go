@@ -693,7 +693,7 @@ func (s *gameService) invalidatePlayerCaches(ctx context.Context) {
 }
 
 func (s *gameService) invalidateGameCaches(ctx context.Context, userIDs ...int) {
-	keys := []string{s.playersCacheKey(), "users:all", "users:rank"}
+	keys := []string{s.playersCacheKey(), "users:all", "users:rank", "users:rank:v2"}
 	for _, userID := range uniqueInts(userIDs) {
 		keys = append(keys, "user:stats:"+strconv.Itoa(userID))
 	}

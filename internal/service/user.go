@@ -30,6 +30,7 @@ type UserService interface {
 // userService 用户服务实现
 type userService struct {
 	userRepo   repository.UserRepository
+	gameRepo   repository.GameRepository
 	cache      *cache.Store
 	cfg        *config.Config
 	httpClient *http.Client
@@ -39,9 +40,10 @@ type userService struct {
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repository.UserRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
+func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
 	return &userService{
 		userRepo:   userRepo,
+		gameRepo:   gameRepo,
 		cache:      cacheStore,
 		cfg:        cfg,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -174,6 +176,10 @@ func (s *userService) GetUserRank(ctx context.Context) ([]*model.UserWithStatsDT
 		return result[i].TotalPoints > result[j].TotalPoints
 	})
 
+	if err := s.attachRankTags(ctx, result); err != nil {
+		return nil, err
+	}
+
 	s.setCache(ctx, cacheKey, result, s.cfg.Redis.RankTTL())
 	return result, nil
 }
@@ -236,7 +242,7 @@ func (s *userService) userStatsCacheKey(userID int) string {
 }
 
 func (s *userService) rankCacheKey() string {
-	return "users:rank"
+	return "users:rank:v2"
 }
 
 func (s *userService) allUsersCacheKey() string {
@@ -244,7 +250,7 @@ func (s *userService) allUsersCacheKey() string {
 }
 
 func (s *userService) invalidateUserCaches(ctx context.Context, userID int) {
-	s.deleteCache(ctx, s.userStatsCacheKey(userID), s.rankCacheKey(), s.allUsersCacheKey(), "players:summary")
+	s.deleteCache(ctx, s.userStatsCacheKey(userID), s.rankCacheKey(), "users:rank", s.allUsersCacheKey(), "players:summary")
 	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:")
 }
 
@@ -284,4 +290,103 @@ func (s *userService) deleteCacheByPrefix(ctx context.Context, prefixes ...strin
 	if err := s.cache.DeleteByPrefix(ctx, prefixes...); err != nil {
 		logger.Warn("delete cache by prefix failed", logger.Any("prefixes", prefixes), logger.Err(err))
 	}
+}
+
+func (s *userService) attachRankTags(ctx context.Context, users []*model.UserWithStatsDTO) error {
+	if len(users) == 0 || s.gameRepo == nil {
+		return nil
+	}
+
+	userIDs := make([]int, 0, len(users))
+	for _, user := range users {
+		if user == nil || user.UserDTO == nil {
+			continue
+		}
+		userIDs = append(userIDs, user.ID)
+	}
+
+	recordsByUserID, err := s.gameRepo.FindRecentWinningRecordsByUserIDs(ctx, userIDs, 10)
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if user == nil || user.UserDTO == nil {
+			continue
+		}
+		user.Tags = summarizeRankTags(recordsByUserID[user.ID], 3)
+	}
+
+	return nil
+}
+
+func summarizeRankTags(records []*model.GameRecord, limit int) []string {
+	if len(records) == 0 || limit <= 0 {
+		return nil
+	}
+
+	type tagStat struct {
+		Code          string
+		Name          string
+		Count         int
+		FirstSeenRank int
+	}
+
+	statsByCode := make(map[string]*tagStat)
+	for recordIdx, record := range records {
+		if record == nil || len(record.WinTypes) == 0 {
+			continue
+		}
+
+		for _, wt := range record.WinTypes {
+			if wt == nil {
+				continue
+			}
+
+			wtInfo, ok := model.GetWinTypeByCode(wt.WinTypeCode)
+			if !ok || wtInfo.Name == "无花果" {
+				continue
+			}
+
+			stat, exists := statsByCode[wt.WinTypeCode]
+			if !exists {
+				stat = &tagStat{
+					Code:          wt.WinTypeCode,
+					Name:          wtInfo.Name,
+					FirstSeenRank: recordIdx,
+				}
+				statsByCode[wt.WinTypeCode] = stat
+			}
+			stat.Count++
+		}
+	}
+
+	if len(statsByCode) == 0 {
+		return nil
+	}
+
+	stats := make([]*tagStat, 0, len(statsByCode))
+	for _, stat := range statsByCode {
+		stats = append(stats, stat)
+	}
+
+	sort.Slice(stats, func(i, j int) bool {
+		if stats[i].Count != stats[j].Count {
+			return stats[i].Count > stats[j].Count
+		}
+		if stats[i].FirstSeenRank != stats[j].FirstSeenRank {
+			return stats[i].FirstSeenRank < stats[j].FirstSeenRank
+		}
+		return stats[i].Name < stats[j].Name
+	})
+
+	if len(stats) > limit {
+		stats = stats[:limit]
+	}
+
+	tags := make([]string, 0, len(stats))
+	for _, stat := range stats {
+		tags = append(tags, stat.Name)
+	}
+	return tags
 }

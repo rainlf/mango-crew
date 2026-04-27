@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/rainlf/mango-crew/internal/model"
 	"gorm.io/gorm"
@@ -21,6 +22,7 @@ type GameRepository interface {
 	FindRecordsByGameID(ctx context.Context, gameID int) ([]*model.GameRecord, error)
 	FindRecordsByGameIDs(ctx context.Context, gameIDs []int) (map[int][]*model.GameRecord, error)
 	FindRecordsByUserID(ctx context.Context, userID int, limit int) ([]*model.GameRecord, error)
+	FindRecentWinningRecordsByUserIDs(ctx context.Context, userIDs []int, limitPerUser int) (map[int][]*model.GameRecord, error)
 
 	// 统计
 	CountPlayerGames(ctx context.Context, userID int) (int64, error)
@@ -156,6 +158,94 @@ func (r *gameRepository) FindRecordsByUserID(ctx context.Context, userID int, li
 		}
 	}
 	return records, err
+}
+
+func (r *gameRepository) FindRecentWinningRecordsByUserIDs(ctx context.Context, userIDs []int, limitPerUser int) (map[int][]*model.GameRecord, error) {
+	if len(userIDs) == 0 || limitPerUser <= 0 {
+		return map[int][]*model.GameRecord{}, nil
+	}
+
+	type recentWinningRecordRow struct {
+		ID            int              `gorm:"column:id"`
+		GameID        int              `gorm:"column:game_id"`
+		UserID        int              `gorm:"column:user_id"`
+		Seat          int              `gorm:"column:seat"`
+		Role          model.PlayerRole `gorm:"column:role"`
+		BasePoints    int              `gorm:"column:base_points"`
+		FinalPoints   int              `gorm:"column:final_points"`
+		IsSettled     bool             `gorm:"column:is_settled"`
+		CreatedAt     time.Time        `gorm:"column:created_at"`
+		UpdatedAt     time.Time        `gorm:"column:updated_at"`
+		WinTypesRaw   string           `gorm:"column:win_types"`
+		GameCreatedAt time.Time        `gorm:"column:game_created_at"`
+	}
+
+	var rows []recentWinningRecordRow
+	query := `
+SELECT
+	id,
+	game_id,
+	user_id,
+	seat,
+	role,
+	base_points,
+	final_points,
+	is_settled,
+	created_at,
+	updated_at,
+	win_types,
+	game_created_at
+FROM (
+	SELECT
+		gr.id,
+		gr.game_id,
+		gr.user_id,
+		gr.seat,
+		gr.role,
+		gr.base_points,
+		gr.final_points,
+		gr.is_settled,
+		gr.created_at,
+		gr.updated_at,
+		gr.win_types,
+		g.created_at AS game_created_at,
+		ROW_NUMBER() OVER (PARTITION BY gr.user_id ORDER BY g.created_at DESC, gr.id DESC) AS rn
+	FROM game_record AS gr
+	JOIN game AS g ON g.id = gr.game_id
+	WHERE gr.user_id IN ?
+	  AND gr.role = ?
+	  AND g.status = ?
+) AS ranked
+WHERE rn <= ?
+ORDER BY user_id ASC, game_created_at DESC, id DESC
+`
+	err := r.db.WithContext(ctx).Raw(query, uniqueInts(userIDs), model.RoleWinner, model.GameStatusSettled, limitPerUser).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	recordsByUserID := make(map[int][]*model.GameRecord, len(userIDs))
+	for _, row := range rows {
+		record := &model.GameRecord{
+			ID:          row.ID,
+			GameID:      row.GameID,
+			UserID:      row.UserID,
+			Seat:        row.Seat,
+			Role:        row.Role,
+			BasePoints:  row.BasePoints,
+			FinalPoints: row.FinalPoints,
+			IsSettled:   row.IsSettled,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
+			WinTypesRaw: row.WinTypesRaw,
+		}
+		if err := record.LoadWinTypesFromRaw(); err != nil {
+			return nil, err
+		}
+		recordsByUserID[row.UserID] = append(recordsByUserID[row.UserID], record)
+	}
+
+	return recordsByUserID, nil
 }
 
 // 统计
