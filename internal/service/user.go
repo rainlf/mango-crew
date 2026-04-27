@@ -314,14 +314,14 @@ func (s *userService) attachRankTags(ctx context.Context, users []*model.UserWit
 		if user == nil || user.UserDTO == nil {
 			continue
 		}
-		user.Tags = summarizeRankTags(recordsByUserID[user.ID], 3)
+		user.Tags = summarizeRankTags(recordsByUserID[user.ID], 0)
 	}
 
 	return nil
 }
 
 func summarizeRankTags(records []*model.GameRecord, limit int) []string {
-	if len(records) == 0 || limit <= 0 {
+	if len(records) == 0 {
 		return nil
 	}
 
@@ -380,7 +380,7 @@ func summarizeRankTags(records []*model.GameRecord, limit int) []string {
 		return stats[i].Name < stats[j].Name
 	})
 
-	if len(stats) > limit {
+	if limit > 0 && len(stats) > limit {
 		stats = stats[:limit]
 	}
 
