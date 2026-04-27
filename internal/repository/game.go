@@ -73,6 +73,8 @@ func (r *gameRepository) FindGamesByUser(ctx context.Context, userID int, limit,
 		Distinct("game.*").
 		Joins("JOIN game_record ON game_record.game_id = game.id").
 		Where("game_record.user_id = ?", userID).
+		Where("game_record.role IN ?", []model.PlayerRole{model.RoleWinner, model.RoleLoser}).
+		Where("game_record.final_points <> 0").
 		Where("game.status = ?", model.GameStatusSettled).
 		Order("game.created_at DESC").
 		Limit(limit).

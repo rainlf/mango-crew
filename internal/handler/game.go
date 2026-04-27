@@ -111,7 +111,7 @@ func (h *GameHandler) RecordMaJiangGame(c *gin.Context) {
 	response.Success(c, game)
 }
 
-// GetGamesByUser 获取个人参与的游戏列表
+// GetGamesByUser 获取个人有输赢分变化的游戏列表
 func (h *GameHandler) GetGamesByUser(c *gin.Context) {
 	userIDStr := c.Query("userId")
 	if userIDStr == "" {
