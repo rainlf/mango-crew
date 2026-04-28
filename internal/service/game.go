@@ -123,12 +123,13 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		return nil, fmt.Errorf("create game records failed: %w", err)
 	}
 
-	affectedUserIDs := append([]int{req.RecorderID}, currentPlayerIDs...)
 	deltas := buildUserStatsDeltas(records)
 	if err := s.userRepo.ApplyStatsDeltas(ctx, deltas); err != nil {
 		return nil, fmt.Errorf("apply user stats delta failed: %w", err)
 	}
-	s.invalidateGameCaches(ctx, affectedUserIDs...)
+	// Invalidate caches for every user whose stats were actually updated.
+	// This is more robust than relying on req.Players/currentPlayerIDs.
+	s.invalidateGameCaches(ctx, userIDsFromStatsDeltas(deltas)...)
 
 	return game, nil
 }
@@ -611,6 +612,17 @@ func uniqueInts(ids []int) []int {
 		result = append(result, id)
 	}
 	return result
+}
+
+func userIDsFromStatsDeltas(deltas map[int]model.UserStatsDelta) []int {
+	if len(deltas) == 0 {
+		return []int{}
+	}
+	ids := make([]int, 0, len(deltas))
+	for userID := range deltas {
+		ids = append(ids, userID)
+	}
+	return uniqueInts(ids)
 }
 
 func buildUserStatsDeltas(records []*model.GameRecord) map[int]model.UserStatsDelta {
