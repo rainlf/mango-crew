@@ -252,11 +252,7 @@ func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequ
 		return errors.New("当前牌桌没有玩家")
 	}
 
-	if gameType == model.YunDong {
-		if len(currentPlayerIDs) != 1 {
-			return errors.New("运动类型只能有1个玩家")
-		}
-	} else if len(currentPlayerIDs) != 4 {
+	if len(currentPlayerIDs) != 4 {
 		return errors.New("麻将对局必须先确定4名当前玩家")
 	}
 
@@ -280,7 +276,7 @@ func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequ
 		if _, exists := winnerSet[winner.UserID]; exists {
 			return errors.New("赢家不能重复")
 		}
-		if gameType != model.YunDong && winner.BasePoints <= 0 {
+		if winner.BasePoints <= 0 {
 			return errors.New("赢家底分必须大于0")
 		}
 		winnerSet[winner.UserID] = struct{}{}
@@ -320,16 +316,6 @@ func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequ
 	case model.XiangGong:
 		if len(req.Winners) != 3 || len(req.Losers) != 1 {
 			return errors.New("相公必须是3个赢家和1个输家")
-		}
-	case model.YunDong:
-		if len(req.Winners) != 1 || len(req.Losers) != 0 {
-			return errors.New("运动类型只能记录1个赢家且没有输家")
-		}
-		if req.Winners[0].UserID != currentPlayerIDs[0] {
-			return errors.New("运动类型只能记录当前牌桌中的唯一玩家")
-		}
-		if req.Winners[0].BasePoints < 0 {
-			return errors.New("运动类型分数不能小于0")
 		}
 	}
 
@@ -408,20 +394,15 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 			total += recordMap[winner.UserID].FinalPoints
 		}
 		recordMap[req.Losers[0]].FinalPoints = -total
-	case model.YunDong:
-		winner := recordMap[req.Winners[0].UserID]
-		winner.FinalPoints = req.Winners[0].BasePoints
 	}
 
 	// 记录者奖励：无论记录者是否在牌桌内，都单独落一条 RoleRecorder 行，避免与输赢分混在一起。
 	// seat 使用 99，避免影响前端按 seat(1-4) 渲染玩家座位。
 	recorderBonus := 0
-	if gameType != model.YunDong {
-		if s.rand.Intn(100) < 1 {
-			recorderBonus = 20
-		} else {
-			recorderBonus = 1
-		}
+	if s.rand.Intn(100) < 1 {
+		recorderBonus = 20
+	} else {
+		recorderBonus = 1
 	}
 	records = append(records, &model.GameRecord{
 		GameID:      gameID,

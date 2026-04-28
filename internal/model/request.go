@@ -27,7 +27,7 @@ type UpdateCurrentPlayersRequest struct {
 
 // RecordMaJiangGameRequest 按旧版记牌流程直接记录一局已结算对局
 type RecordMaJiangGameRequest struct {
-	GameType   int                       `json:"gameType" binding:"required,min=1,max=6"`
+	GameType   int                       `json:"gameType" binding:"required,min=1,max=5"`
 	Players    []int                     `json:"players" binding:"required,min=1"`
 	RecorderID int                       `json:"recorderId" binding:"required"`
 	Winners    []*RecordMaJiangWinnerDTO `json:"winners" binding:"required,min=1"`

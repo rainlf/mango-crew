@@ -155,7 +155,7 @@ curl http://localhost:8080/api/health
 
 积分相关说明：
 
-- `game.type` 记录对局类型：平胡、自摸、一炮双响、一炮三响、相公、运动。
+- `game.type` 记录对局类型：平胡、自摸、一炮双响、一炮三响、相公。
 - `game_record.role` 记录玩家角色：赢家、输家、记录者、参与者。
 - `final_points` 由基础分和番型倍数计算得出。
 - 用户统计字段冗余存储在 `user.total_points`、`user.total_games`、`user.win_count`、`user.win_rate` 中。

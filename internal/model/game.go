@@ -13,7 +13,6 @@ const (
 	YiPaoShuangXiang GameType = 3 // 一炮双响
 	YiPaoSanXiang    GameType = 4 // 一炮三响
 	XiangGong        GameType = 5 // 相公
-	YunDong          GameType = 6 // 运动
 )
 
 func (t GameType) Name() string {
@@ -28,8 +27,6 @@ func (t GameType) Name() string {
 		return "一炮三响"
 	case XiangGong:
 		return "相公"
-	case YunDong:
-		return "运动"
 	default:
 		return "未知"
 	}
@@ -47,10 +44,8 @@ func GameTypeFromCode(code int) GameType {
 		return YiPaoSanXiang
 	case 5:
 		return XiangGong
-	case 6:
-		return YunDong
 	default:
-		return PingHu
+		return GameType(code)
 	}
 }
 

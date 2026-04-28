@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `user` (
 -- 游戏记录表
 CREATE TABLE IF NOT EXISTS `game` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '游戏ID',
-    `type` TINYINT NOT NULL COMMENT '类型: 1-平胡 2-自摸 3-一炮双响 4-一炮三响 5-相公 6-运动',
+    `type` TINYINT NOT NULL COMMENT '类型: 1-平胡 2-自摸 3-一炮双响 4-一炮三响 5-相公',
     `status` TINYINT DEFAULT 0 NOT NULL COMMENT '状态: 0-进行中 1-已结算 2-已取消',
     `remark` VARCHAR(200) DEFAULT '' COMMENT '备注',
     `created_by` INT UNSIGNED NOT NULL COMMENT '创建者ID',
