@@ -25,6 +25,7 @@ type UserService interface {
 	GetUserByID(ctx context.Context, id int) (*model.UserWithStatsDTO, error)
 	UpdateUser(ctx context.Context, userID int, req *model.UpdateUserRequest) (*model.User, error)
 	GetUserRank(ctx context.Context) ([]*model.UserWithStatsDTO, error)
+	GetFitnessRank(ctx context.Context) ([]*model.UserWithStatsDTO, error)
 	GetAllUsers(ctx context.Context) ([]*model.UserDTO, error)
 	RebuildUserStats(ctx context.Context, userIDs []int) (int, error)
 }
@@ -195,6 +196,51 @@ func (s *userService) GetUserRank(ctx context.Context) ([]*model.UserWithStatsDT
 	return result, nil
 }
 
+func (s *userService) GetFitnessRank(ctx context.Context) ([]*model.UserWithStatsDTO, error) {
+	cacheKey := s.fitnessRankCacheKey()
+	var cached []*model.UserWithStatsDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
+	users, err := s.userRepo.FindAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fitnessStatsByUserID, err := s.gameRepo.ListFitnessStatsByUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.UserWithStatsDTO, 0, len(users))
+	for _, user := range users {
+		dto := (&model.UserWithStatsDTO{}).FromUser(user)
+		if stats, ok := fitnessStatsByUserID[user.ID]; ok {
+			dto.TotalPoints = stats.TotalPoints
+			dto.TotalGames = stats.TotalGames
+		} else {
+			dto.TotalPoints = 0
+			dto.TotalGames = 0
+		}
+		dto.WinCount = 0
+		dto.WinRate = 0
+		result = append(result, dto)
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].TotalPoints == result[j].TotalPoints {
+			if result[i].TotalGames == result[j].TotalGames {
+				return result[i].ID < result[j].ID
+			}
+			return result[i].TotalGames > result[j].TotalGames
+		}
+		return result[i].TotalPoints > result[j].TotalPoints
+	})
+
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.RankTTL())
+	return result, nil
+}
+
 func (s *userService) GetAllUsers(ctx context.Context) ([]*model.UserDTO, error) {
 	cacheKey := s.allUsersCacheKey()
 	var cached []*model.UserDTO
@@ -256,13 +302,17 @@ func (s *userService) rankCacheKey() string {
 	return "users:rank:v2"
 }
 
+func (s *userService) fitnessRankCacheKey() string {
+	return "users:fitness-rank:v1"
+}
+
 func (s *userService) allUsersCacheKey() string {
 	return "users:all"
 }
 
 func (s *userService) invalidateUserCaches(ctx context.Context, userID int) {
-	s.deleteCache(ctx, s.userStatsCacheKey(userID), s.rankCacheKey(), "users:rank", s.allUsersCacheKey(), "players:summary")
-	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:")
+	s.deleteCache(ctx, s.userStatsCacheKey(userID), s.rankCacheKey(), s.fitnessRankCacheKey(), "users:rank", s.allUsersCacheKey(), "players:summary")
+	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:", "games:fitness:recent:", "games:fitness:user:")
 }
 
 func (s *userService) getCache(ctx context.Context, key string, dest any) (bool, error) {

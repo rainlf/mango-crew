@@ -63,6 +63,32 @@ func (h *GameHandler) GetRecentGames(c *gin.Context) {
 	response.Success(c, games)
 }
 
+// GetRecentFitnessGames 获取最近的健身记录列表
+func (h *GameHandler) GetRecentFitnessGames(c *gin.Context) {
+	limit := 10
+	offset := 0
+
+	if l := c.Query("limit"); l != "" {
+		if val, parseErr := strconv.Atoi(l); parseErr == nil && val > 0 {
+			limit = val
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if val, parseErr := strconv.Atoi(o); parseErr == nil && val >= 0 {
+			offset = val
+		}
+	}
+
+	games, err := h.gameService.GetRecentFitnessGames(c.Request.Context(), limit, offset)
+	if err != nil {
+		logger.Error("get recent fitness games failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, games)
+}
+
 // GetPlayers 获取玩家列表
 func (h *GameHandler) GetPlayers(c *gin.Context) {
 	players, err := h.gameService.GetPlayers(c.Request.Context())
@@ -191,6 +217,44 @@ func (h *GameHandler) GetGamesByUser(c *gin.Context) {
 	response.Success(c, games)
 }
 
+// GetFitnessGamesByUser 获取个人健身记录
+func (h *GameHandler) GetFitnessGamesByUser(c *gin.Context) {
+	userIDStr := c.Query("userId")
+	if userIDStr == "" {
+		response.BadRequest(c, "userId不能为空")
+		return
+	}
+
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		response.BadRequest(c, "userId格式错误")
+		return
+	}
+
+	limit := 10
+	offset := 0
+
+	if l := c.Query("limit"); l != "" {
+		if val, parseErr := strconv.Atoi(l); parseErr == nil && val > 0 {
+			limit = val
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if val, parseErr := strconv.Atoi(o); parseErr == nil && val >= 0 {
+			offset = val
+		}
+	}
+
+	games, err := h.gameService.GetFitnessGamesByUser(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		logger.Error("get fitness games by user failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, games)
+}
+
 // RegisterGameRoutes 注册游戏路由
 func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 	// 游戏相关
@@ -201,7 +265,9 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 		gameGroup.POST("/cancel", handler.CancelGame)
 		gameGroup.POST("/players", handler.UpdateCurrentPlayers)
 		gameGroup.GET("/user/list", handler.GetGamesByUser)
+		gameGroup.GET("/fitness/user/list", handler.GetFitnessGamesByUser)
 		gameGroup.GET("/recent", handler.GetRecentGames)
+		gameGroup.GET("/fitness/recent", handler.GetRecentFitnessGames)
 		gameGroup.GET("/players", handler.GetPlayers)
 		gameGroup.GET("/prize-pool", handler.GetPrizePool)
 		gameGroup.GET("/prize-pool/detail", handler.GetPrizePoolDetail)

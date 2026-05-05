@@ -29,6 +29,13 @@ type UserWithStatsDTO struct {
 	Tags        []string `json:"tags,omitempty"`
 }
 
+// UserFitnessStats 用户健身统计
+type UserFitnessStats struct {
+	UserID      int
+	TotalPoints int
+	TotalGames  int
+}
+
 // FromUser 从 User 创建带统计信息 DTO
 func (dto *UserWithStatsDTO) FromUser(user *User) *UserWithStatsDTO {
 	if user == nil {

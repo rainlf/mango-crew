@@ -32,6 +32,8 @@ type GameService interface {
 	CancelGame(ctx context.Context, gameID int) error
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
 	GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
+	GetFitnessGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
+	GetRecentFitnessGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
 	GetPrizePool(ctx context.Context) (*model.PrizePoolDTO, error)
 	GetPrizePoolDetail(ctx context.Context) (*model.PrizePoolDetailDTO, error)
 
@@ -262,6 +264,44 @@ func (s *gameService) GetRecentGames(ctx context.Context, limit, offset int) ([]
 	}
 
 	games, err := s.gameRepo.FindRecentGames(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.buildGameDTOs(ctx, games)
+	if err != nil {
+		return nil, err
+	}
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.GameListTTL())
+	return result, nil
+}
+
+func (s *gameService) GetFitnessGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error) {
+	cacheKey := s.fitnessGamesByUserCacheKey(userID, limit, offset)
+	var cached []*model.GameDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
+	games, err := s.gameRepo.FindFitnessGamesByUser(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.buildGameDTOs(ctx, games)
+	if err != nil {
+		return nil, err
+	}
+	s.setCache(ctx, cacheKey, result, s.cfg.Redis.GameListTTL())
+	return result, nil
+}
+
+func (s *gameService) GetRecentFitnessGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error) {
+	cacheKey := s.recentFitnessGamesCacheKey(limit, offset)
+	var cached []*model.GameDTO
+	if ok, err := s.getCache(ctx, cacheKey, &cached); err == nil && ok {
+		return cached, nil
+	}
+
+	games, err := s.gameRepo.FindRecentFitnessGames(ctx, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -862,17 +902,25 @@ func (s *gameService) gamesByUserCacheKey(userID, limit, offset int) string {
 	return "games:user:" + strconv.Itoa(userID) + ":limit:" + strconv.Itoa(limit) + ":offset:" + strconv.Itoa(offset)
 }
 
+func (s *gameService) recentFitnessGamesCacheKey(limit, offset int) string {
+	return "games:fitness:recent:limit:" + strconv.Itoa(limit) + ":offset:" + strconv.Itoa(offset)
+}
+
+func (s *gameService) fitnessGamesByUserCacheKey(userID, limit, offset int) string {
+	return "games:fitness:user:" + strconv.Itoa(userID) + ":limit:" + strconv.Itoa(limit) + ":offset:" + strconv.Itoa(offset)
+}
+
 func (s *gameService) invalidatePlayerCaches(ctx context.Context) {
 	s.deleteCache(ctx, s.playersCacheKey())
 }
 
 func (s *gameService) invalidateGameCaches(ctx context.Context, userIDs ...int) {
-	keys := []string{s.playersCacheKey(), "users:all", "users:rank", "users:rank:v2"}
+	keys := []string{s.playersCacheKey(), "users:all", "users:rank", "users:rank:v2", "users:fitness-rank:v1"}
 	for _, userID := range uniqueInts(userIDs) {
 		keys = append(keys, "user:stats:"+strconv.Itoa(userID))
 	}
 	s.deleteCache(ctx, keys...)
-	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:")
+	s.deleteCacheByPrefix(ctx, "games:recent:", "games:user:", "games:fitness:recent:", "games:fitness:user:")
 }
 
 func (s *gameService) getCache(ctx context.Context, key string, dest any) (bool, error) {

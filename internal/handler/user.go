@@ -145,6 +145,18 @@ func (h *UserHandler) GetUserRank(c *gin.Context) {
 	response.Success(c, users)
 }
 
+// GetFitnessRank 获取健身榜
+func (h *UserHandler) GetFitnessRank(c *gin.Context) {
+	users, err := h.userService.GetFitnessRank(c.Request.Context())
+	if err != nil {
+		logger.Error("get fitness rank failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, users)
+}
+
 // GetAllUsers 获取所有用户
 func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	users, err := h.userService.GetAllUsers(c.Request.Context())
@@ -185,6 +197,7 @@ func RegisterUserRoutes(r *gin.RouterGroup, handler *UserHandler) {
 		userGroup.GET("/info", handler.GetUserInfo)
 		userGroup.POST("/update", handler.UpdateUser)
 		userGroup.GET("/rank", handler.GetUserRank)
+		userGroup.GET("/fitness/rank", handler.GetFitnessRank)
 		userGroup.GET("/list", handler.GetAllUsers)
 		userGroup.POST("/stats/rebuild", handler.RebuildUserStats)
 	}

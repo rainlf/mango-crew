@@ -17,6 +17,9 @@ type GameRepository interface {
 	FindByID(ctx context.Context, id int) (*model.Game, error)
 	FindRecentGames(ctx context.Context, limit, offset int) ([]*model.Game, error)
 	FindGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error)
+	FindRecentFitnessGames(ctx context.Context, limit, offset int) ([]*model.Game, error)
+	FindFitnessGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error)
+	ListFitnessStatsByUser(ctx context.Context) (map[int]model.UserFitnessStats, error)
 	CancelGame(ctx context.Context, id int) error
 	GetRecorderPrizePool(ctx context.Context) (int, error)
 	AdjustRecorderPrizePool(ctx context.Context, delta int) error
@@ -89,6 +92,71 @@ func (r *gameRepository) FindGamesByUser(ctx context.Context, userID int, limit,
 		Offset(offset).
 		Find(&games).Error
 	return games, err
+}
+
+func (r *gameRepository) FindRecentFitnessGames(ctx context.Context, limit, offset int) ([]*model.Game, error) {
+	var games []*model.Game
+	err := r.db.WithContext(ctx).
+		Where("status = ?", model.GameStatusSettled).
+		Where("type = ?", model.SquatRedeem).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&games).Error
+	return games, err
+}
+
+func (r *gameRepository) FindFitnessGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error) {
+	var games []*model.Game
+	err := r.db.WithContext(ctx).
+		Model(&model.Game{}).
+		Distinct("game.*").
+		Joins("JOIN game_record ON game_record.game_id = game.id").
+		Where("game_record.user_id = ?", userID).
+		Where("game_record.role = ?", model.RoleSquatRedeem).
+		Where("game.type = ?", model.SquatRedeem).
+		Where("game.status = ?", model.GameStatusSettled).
+		Order("game.created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&games).Error
+	return games, err
+}
+
+func (r *gameRepository) ListFitnessStatsByUser(ctx context.Context) (map[int]model.UserFitnessStats, error) {
+	type fitnessStatsRow struct {
+		UserID      int `gorm:"column:user_id"`
+		TotalPoints int `gorm:"column:total_points"`
+		TotalGames  int `gorm:"column:total_games"`
+	}
+
+	var rows []fitnessStatsRow
+	err := r.db.WithContext(ctx).
+		Table("game_record").
+		Select(`
+			game_record.user_id AS user_id,
+			COALESCE(SUM(game_record.base_points), 0) AS total_points,
+			COUNT(*) AS total_games
+		`).
+		Joins("JOIN game ON game.id = game_record.game_id").
+		Where("game_record.role = ?", model.RoleSquatRedeem).
+		Where("game.type = ?", model.SquatRedeem).
+		Where("game.status = ?", model.GameStatusSettled).
+		Group("game_record.user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	statsByUserID := make(map[int]model.UserFitnessStats, len(rows))
+	for _, row := range rows {
+		statsByUserID[row.UserID] = model.UserFitnessStats{
+			UserID:      row.UserID,
+			TotalPoints: row.TotalPoints,
+			TotalGames:  row.TotalGames,
+		}
+	}
+	return statsByUserID, nil
 }
 
 func (r *gameRepository) CancelGame(ctx context.Context, id int) error {
