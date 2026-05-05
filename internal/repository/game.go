@@ -284,6 +284,7 @@ func (r *gameRepository) FindRecentWinningRecordsByUserIDs(ctx context.Context, 
 	type recentWinningRecordRow struct {
 		ID            int              `gorm:"column:id"`
 		GameID        int              `gorm:"column:game_id"`
+		GameType      int              `gorm:"column:game_type"`
 		UserID        int              `gorm:"column:user_id"`
 		Seat          int              `gorm:"column:seat"`
 		Role          model.PlayerRole `gorm:"column:role"`
@@ -301,6 +302,7 @@ func (r *gameRepository) FindRecentWinningRecordsByUserIDs(ctx context.Context, 
 SELECT
 	id,
 	game_id,
+		game_type,
 	user_id,
 	seat,
 	role,
@@ -315,6 +317,7 @@ FROM (
 	SELECT
 		gr.id,
 		gr.game_id,
+			g.type AS game_type,
 		gr.user_id,
 		gr.seat,
 		gr.role,
@@ -345,6 +348,7 @@ ORDER BY user_id ASC, game_created_at DESC, id DESC
 		record := &model.GameRecord{
 			ID:          row.ID,
 			GameID:      row.GameID,
+			GameType:    model.GameTypeFromCode(row.GameType),
 			UserID:      row.UserID,
 			Seat:        row.Seat,
 			Role:        row.Role,

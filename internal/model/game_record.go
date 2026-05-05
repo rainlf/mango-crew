@@ -34,6 +34,7 @@ func (r PlayerRole) Name() string {
 type GameRecord struct {
 	ID          int        `gorm:"primaryKey;autoIncrement" json:"id"`
 	GameID      int        `gorm:"not null;index:idx_game_record_game" json:"game_id"`
+	GameType    GameType   `gorm:"-" json:"-"`
 	UserID      int        `gorm:"not null;index:idx_game_record_user" json:"user_id"`
 	Seat        int        `gorm:"not null" json:"seat"`          // 座位号 1-4
 	Role        PlayerRole `gorm:"not null" json:"role"`          // 角色

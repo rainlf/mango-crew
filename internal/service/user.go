@@ -345,7 +345,24 @@ func summarizeRankTags(records []*model.GameRecord, limit int) []string {
 
 	statsByCode := make(map[string]*tagStat)
 	for recordIdx, record := range records {
-		if record == nil || len(record.WinTypes) == 0 {
+		if record == nil {
+			continue
+		}
+
+		switch record.GameType {
+		case model.YiPaoShuangXiang, model.YiPaoSanXiang:
+			gameTypeTagCode := "game_type:" + strconv.Itoa(int(record.GameType))
+			if _, exists := statsByCode[gameTypeTagCode]; !exists {
+				statsByCode[gameTypeTagCode] = &tagStat{
+					Code:          gameTypeTagCode,
+					Name:          record.GameType.Name(),
+					FirstSeenRank: recordIdx,
+				}
+			}
+			statsByCode[gameTypeTagCode].Count++
+		}
+
+		if len(record.WinTypes) == 0 {
 			continue
 		}
 
