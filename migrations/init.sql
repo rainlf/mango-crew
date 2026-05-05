@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `user` (
 -- 游戏记录表
 CREATE TABLE IF NOT EXISTS `game` (
     `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '游戏ID',
-    `type` TINYINT NOT NULL COMMENT '类型: 1-平胡 2-自摸 3-一炮双响 4-一炮三响 5-相公',
+    `type` TINYINT NOT NULL COMMENT '类型: 1-平胡 2-自摸 3-一炮双响 4-一炮三响 5-相公 6-深蹲兑换',
     `status` TINYINT DEFAULT 0 NOT NULL COMMENT '状态: 0-进行中 1-已结算 2-已取消',
     `remark` VARCHAR(200) DEFAULT '' COMMENT '备注',
     `created_by` INT UNSIGNED NOT NULL COMMENT '创建者ID',
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `game_record` (
     `game_id` INT UNSIGNED NOT NULL COMMENT '游戏ID',
     `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
     `seat` TINYINT NOT NULL COMMENT '座位号 1-4',
-    `role` TINYINT NOT NULL COMMENT '角色: 1-赢家 2-输家 3-记录者 4-参与者',
+    `role` TINYINT NOT NULL COMMENT '角色: 1-赢家 2-输家 3-记录者 4-参与者 5-深蹲兑换',
     `base_points` INT DEFAULT 0 COMMENT '基础分',
     `final_points` INT DEFAULT 0 COMMENT '最终分数',
     `win_types` TEXT NULL COMMENT '赢家番型JSON，非赢家可为空',

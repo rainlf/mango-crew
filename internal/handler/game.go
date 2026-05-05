@@ -135,6 +135,24 @@ func (h *GameHandler) RecordMaJiangGame(c *gin.Context) {
 	response.Success(c, game)
 }
 
+// RedeemSquat 深蹲次数兑换金币
+func (h *GameHandler) RedeemSquat(c *gin.Context) {
+	var req model.RedeemSquatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数错误: "+err.Error())
+		return
+	}
+
+	game, err := h.gameService.RedeemSquat(c.Request.Context(), &req)
+	if err != nil {
+		logger.Error("redeem squat failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, game)
+}
+
 // GetGamesByUser 获取个人有输赢分变化的游戏列表
 func (h *GameHandler) GetGamesByUser(c *gin.Context) {
 	userIDStr := c.Query("userId")
@@ -179,6 +197,7 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 	gameGroup := r.Group("/game")
 	{
 		gameGroup.POST("/record", handler.RecordMaJiangGame)
+		gameGroup.POST("/squat/redeem", handler.RedeemSquat)
 		gameGroup.POST("/cancel", handler.CancelGame)
 		gameGroup.POST("/players", handler.UpdateCurrentPlayers)
 		gameGroup.GET("/user/list", handler.GetGamesByUser)

@@ -9,10 +9,11 @@ import (
 type PlayerRole int
 
 const (
-	RoleWinner   PlayerRole = 1 // 赢家
-	RoleLoser    PlayerRole = 2 // 输家
-	RoleRecorder PlayerRole = 3 // 记录者
-	RoleNeutral  PlayerRole = 4 // 参与但本局分数不变
+	RoleWinner      PlayerRole = 1 // 赢家
+	RoleLoser       PlayerRole = 2 // 输家
+	RoleRecorder    PlayerRole = 3 // 记录者
+	RoleNeutral     PlayerRole = 4 // 参与但本局分数不变
+	RoleSquatRedeem PlayerRole = 5 // 深蹲兑换
 )
 
 func (r PlayerRole) Name() string {
@@ -25,6 +26,8 @@ func (r PlayerRole) Name() string {
 		return "记录者"
 	case RoleNeutral:
 		return "参与者"
+	case RoleSquatRedeem:
+		return "深蹲兑换"
 	default:
 		return "未知"
 	}

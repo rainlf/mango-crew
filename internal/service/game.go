@@ -20,6 +20,7 @@ const (
 	recorderPoolMinIncrement   = 1
 	recorderPoolIncrementRange = 3
 	recorderPrizeRecordSeat    = 99
+	squatRedeemSeat            = 88
 )
 
 // GameService 游戏服务接口
@@ -27,6 +28,7 @@ type GameService interface {
 	UpdateCurrentPlayers(ctx context.Context, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error)
 
 	RecordMaJiangGame(ctx context.Context, req *model.RecordMaJiangGameRequest) (*model.Game, error)
+	RedeemSquat(ctx context.Context, req *model.RedeemSquatRequest) (*model.Game, error)
 	CancelGame(ctx context.Context, gameID int) error
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
 	GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
@@ -148,6 +150,55 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 	// This is more robust than relying on req.Players/currentPlayerIDs.
 	s.invalidateGameCaches(ctx, userIDsFromStatsDeltas(deltas)...)
 
+	return game, nil
+}
+
+func (s *gameService) RedeemSquat(ctx context.Context, req *model.RedeemSquatRequest) (*model.Game, error) {
+	if req.UserID <= 0 {
+		return nil, errors.New("user_id不能为空")
+	}
+	if req.SquatCount <= 0 {
+		return nil, errors.New("squat_count必须大于0")
+	}
+	if err := s.ensureUsersExist(ctx, []int{req.UserID}); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	game := &model.Game{
+		Type:      model.SquatRedeem,
+		Status:    model.GameStatusSettled,
+		Remark:    fmt.Sprintf("深蹲兑换 %d 金币", req.SquatCount),
+		CreatedBy: req.UserID,
+		CreatedAt: now,
+		SettledAt: &now,
+	}
+	if err := s.gameRepo.Create(ctx, game); err != nil {
+		return nil, fmt.Errorf("create squat redeem game failed: %w", err)
+	}
+
+	record := &model.GameRecord{
+		GameID:      game.ID,
+		GameType:    model.SquatRedeem,
+		UserID:      req.UserID,
+		Seat:        squatRedeemSeat,
+		Role:        model.RoleSquatRedeem,
+		BasePoints:  req.SquatCount,
+		FinalPoints: req.SquatCount,
+		IsSettled:   true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.gameRepo.CreateRecords(ctx, []*model.GameRecord{record}); err != nil {
+		return nil, fmt.Errorf("create squat redeem record failed: %w", err)
+	}
+
+	deltas := buildUserStatsDeltas([]*model.GameRecord{record})
+	if err := s.userRepo.ApplyStatsDeltas(ctx, deltas); err != nil {
+		return nil, fmt.Errorf("apply squat redeem stats delta failed: %w", err)
+	}
+
+	s.invalidateGameCaches(ctx, req.UserID)
 	return game, nil
 }
 
@@ -456,6 +507,7 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 
 		record := &model.GameRecord{
 			GameID:     gameID,
+			GameType:   gameType,
 			UserID:     userID,
 			Seat:       idx + 1,
 			Role:       role,
@@ -527,6 +579,7 @@ func (s *gameService) buildRecorderPrizeRecord(gameID, recorderID, currentPrizeP
 	now := time.Now()
 	return &model.GameRecord{
 		GameID:      gameID,
+		GameType:    model.GameType(0),
 		UserID:      recorderID,
 		Seat:        recorderPrizeRecordSeat,
 		Role:        model.RoleRecorder,
@@ -771,8 +824,8 @@ func shouldCountRecordAsGameParticipation(record *model.GameRecord) bool {
 	if record == nil {
 		return false
 	}
-	// 记录人奖励行只记奖励分，不代表实际参赛。
-	return record.Role != model.RoleRecorder
+	// 记录人奖励行与深蹲兑换行只记分，不代表实际参赛。
+	return record.Role != model.RoleRecorder && record.Role != model.RoleSquatRedeem
 }
 
 func negateUserStatsDeltas(deltas map[int]model.UserStatsDelta) map[int]model.UserStatsDelta {

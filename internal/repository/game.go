@@ -81,7 +81,7 @@ func (r *gameRepository) FindGamesByUser(ctx context.Context, userID int, limit,
 		Distinct("game.*").
 		Joins("JOIN game_record ON game_record.game_id = game.id").
 		Where("game_record.user_id = ?", userID).
-		Where("game_record.role IN ?", []model.PlayerRole{model.RoleWinner, model.RoleLoser}).
+		Where("game_record.role IN ?", []model.PlayerRole{model.RoleWinner, model.RoleLoser, model.RoleSquatRedeem}).
 		Where("game_record.final_points <> 0").
 		Where("game.status = ?", model.GameStatusSettled).
 		Order("game.created_at DESC").
@@ -376,7 +376,7 @@ func (r *gameRepository) CountPlayerGames(ctx context.Context, userID int) (int6
 		Model(&model.GameRecord{}).
 		Joins("JOIN game ON game.id = game_record.game_id").
 		Where("game_record.user_id = ?", userID).
-		Where("game_record.role <> ?", model.RoleRecorder).
+		Where("game_record.role NOT IN ?", []model.PlayerRole{model.RoleRecorder, model.RoleSquatRedeem}).
 		Where("game.status = ?", model.GameStatusSettled).
 		Distinct("game_record.game_id").
 		Count(&count).Error

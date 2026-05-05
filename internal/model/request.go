@@ -41,3 +41,9 @@ type RecordMaJiangWinnerDTO struct {
 	BasePoints int      `json:"basePoints"`
 	WinTypes   []string `json:"winTypes"`
 }
+
+// RedeemSquatRequest 深蹲兑换请求
+type RedeemSquatRequest struct {
+	UserID     int `json:"user_id" binding:"required"`
+	SquatCount int `json:"squat_count" binding:"required,min=1"`
+}
