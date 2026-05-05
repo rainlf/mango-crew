@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/rainlf/mango-crew/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GameRepository 游戏数据访问接口
@@ -16,6 +18,10 @@ type GameRepository interface {
 	FindRecentGames(ctx context.Context, limit, offset int) ([]*model.Game, error)
 	FindGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.Game, error)
 	CancelGame(ctx context.Context, id int) error
+	GetRecorderPrizePool(ctx context.Context) (int, error)
+	AdjustRecorderPrizePool(ctx context.Context, delta int) error
+	ListRecorderPrizePoolContributors(ctx context.Context) (map[int]int, error)
+	ListRecorderPrizePoolJackpotRecords(ctx context.Context) ([]*model.GameRecord, error)
 
 	// 对局记录相关
 	CreateRecords(ctx context.Context, records []*model.GameRecord) error
@@ -91,6 +97,116 @@ func (r *gameRepository) CancelGame(ctx context.Context, id int) error {
 		Update("status", model.GameStatusCanceled).Error
 }
 
+func (r *gameRepository) GetRecorderPrizePool(ctx context.Context) (int, error) {
+	pool, err := r.getOrCreateRecorderPrizePool(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return pool.Balance, nil
+}
+
+func (r *gameRepository) AdjustRecorderPrizePool(ctx context.Context, delta int) error {
+	if delta == 0 {
+		return nil
+	}
+
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		pool, err := r.getOrCreateRecorderPrizePoolTx(ctx, tx)
+		if err != nil {
+			return err
+		}
+
+		nextBalance := pool.Balance + delta
+		if nextBalance < 0 {
+			return errors.New("奖池余额不能为负数")
+		}
+
+		return tx.Model(&model.PrizePool{}).
+			Where("id = ?", pool.ID).
+			Update("balance", nextBalance).Error
+	})
+}
+
+func (r *gameRepository) ListRecorderPrizePoolContributors(ctx context.Context) (map[int]int, error) {
+	type contributorRow struct {
+		UserID            int `gorm:"column:user_id"`
+		ContributedPoints int `gorm:"column:contributed_points"`
+	}
+
+	var rows []contributorRow
+	err := r.db.WithContext(ctx).
+		Table("game_record").
+		Select("game_record.user_id, COALESCE(SUM(game_record.base_points), 0) AS contributed_points").
+		Joins("JOIN game ON game.id = game_record.game_id").
+		Where("game_record.role = ?", model.RoleRecorder).
+		Where("game.status = ?", model.GameStatusSettled).
+		Group("game_record.user_id").
+		Having("COALESCE(SUM(game_record.base_points), 0) > 0").
+		Order("contributed_points DESC, game_record.user_id ASC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	contributors := make(map[int]int, len(rows))
+	for _, row := range rows {
+		contributors[row.UserID] = row.ContributedPoints
+	}
+	return contributors, nil
+}
+
+func (r *gameRepository) ListRecorderPrizePoolJackpotRecords(ctx context.Context) ([]*model.GameRecord, error) {
+	var records []*model.GameRecord
+	err := r.db.WithContext(ctx).
+		Model(&model.GameRecord{}).
+		Joins("JOIN game ON game.id = game_record.game_id").
+		Where("game_record.role = ?", model.RoleRecorder).
+		Where("game_record.final_points > 0").
+		Where("game.status = ?", model.GameStatusSettled).
+		Order("game_record.created_at DESC, game_record.id DESC").
+		Find(&records).Error
+	if err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (r *gameRepository) getOrCreateRecorderPrizePool(ctx context.Context) (*model.PrizePool, error) {
+	var pool *model.PrizePool
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		pool, err = r.getOrCreateRecorderPrizePoolTx(ctx, tx)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return pool, nil
+}
+
+func (r *gameRepository) getOrCreateRecorderPrizePoolTx(ctx context.Context, tx *gorm.DB) (*model.PrizePool, error) {
+	var pool model.PrizePool
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("pool_type = ?", model.PrizePoolTypeRecorder).
+		First(&pool).Error
+	if err == nil {
+		return &pool, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	pool = model.PrizePool{
+		PoolType: model.PrizePoolTypeRecorder,
+		Balance:  0,
+	}
+	if err := tx.WithContext(ctx).Create(&pool).Error; err != nil {
+		return nil, err
+	}
+	return &pool, nil
+}
+
 // 对局记录相关
 
 func (r *gameRepository) CreateRecords(ctx context.Context, records []*model.GameRecord) error {
@@ -111,11 +227,11 @@ func (r *gameRepository) FindRecordsByGameID(ctx context.Context, gameID int) ([
 		return nil, err
 	}
 	for _, record := range records {
-		if err := record.LoadWinTypesFromRaw(); err != nil {
-			return nil, err
+		if loadErr := record.LoadWinTypesFromRaw(); loadErr != nil {
+			return nil, loadErr
 		}
 	}
-	return records, err
+	return records, nil
 }
 
 func (r *gameRepository) FindRecordsByGameIDs(ctx context.Context, gameIDs []int) (map[int][]*model.GameRecord, error) {
@@ -153,11 +269,11 @@ func (r *gameRepository) FindRecordsByUserID(ctx context.Context, userID int, li
 		return nil, err
 	}
 	for _, record := range records {
-		if err := record.LoadWinTypesFromRaw(); err != nil {
-			return nil, err
+		if loadErr := record.LoadWinTypesFromRaw(); loadErr != nil {
+			return nil, loadErr
 		}
 	}
-	return records, err
+	return records, nil
 }
 
 func (r *gameRepository) FindRecentWinningRecordsByUserIDs(ctx context.Context, userIDs []int, limitPerUser int) (map[int][]*model.GameRecord, error) {

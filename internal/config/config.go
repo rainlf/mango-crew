@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
+	Game     GameConfig     `mapstructure:"game"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Log      LogConfig      `mapstructure:"log"`
 	Wechat   WechatConfig   `mapstructure:"wechat"`
@@ -29,6 +30,10 @@ type DatabaseConfig struct {
 	Database     string `mapstructure:"database"`
 	MaxIdleConns int    `mapstructure:"max_idle_conns"`
 	MaxOpenConns int    `mapstructure:"max_open_conns"`
+}
+
+type GameConfig struct {
+	RecorderJackpotChancePercent int `mapstructure:"recorder_jackpot_chance_percent"`
 }
 
 type LogConfig struct {
@@ -79,6 +84,16 @@ func Load(path string) (*Config, error) {
 func (c *DatabaseConfig) DSN() string {
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		c.Username, c.Password, c.Host, c.Port, c.Database)
+}
+
+func (c GameConfig) RecorderJackpotChance() int {
+	if c.RecorderJackpotChancePercent <= 0 {
+		return 20
+	}
+	if c.RecorderJackpotChancePercent > 100 {
+		return 100
+	}
+	return c.RecorderJackpotChancePercent
 }
 
 func (c RedisConfig) Prefix() string {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sort"
 	"strconv"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 	"github.com/rainlf/mango-crew/pkg/logger"
 )
 
+const (
+	recorderPoolMinIncrement   = 1
+	recorderPoolIncrementRange = 3
+	recorderPrizeRecordSeat    = 99
+)
+
 // GameService 游戏服务接口
 type GameService interface {
 	UpdateCurrentPlayers(ctx context.Context, req *model.UpdateCurrentPlayersRequest) (*model.PlayerSummaryDTO, error)
@@ -23,6 +30,8 @@ type GameService interface {
 	CancelGame(ctx context.Context, gameID int) error
 	GetGamesByUser(ctx context.Context, userID int, limit, offset int) ([]*model.GameDTO, error)
 	GetRecentGames(ctx context.Context, limit, offset int) ([]*model.GameDTO, error)
+	GetPrizePool(ctx context.Context) (*model.PrizePoolDTO, error)
+	GetPrizePoolDetail(ctx context.Context) (*model.PrizePoolDetailDTO, error)
 
 	GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, error)
 }
@@ -115,12 +124,20 @@ func (s *gameService) RecordMaJiangGame(ctx context.Context, req *model.RecordMa
 		return nil, fmt.Errorf("create game failed: %w", err)
 	}
 
-	records, err := s.buildRecordedPlayers(game.ID, req, currentPlayerIDs, gameType)
+	recorderPrizePool, err := s.gameRepo.GetRecorderPrizePool(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load recorder prize pool failed: %w", err)
+	}
+
+	records, err := s.buildRecordedPlayers(game.ID, req, currentPlayerIDs, gameType, recorderPrizePool)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.gameRepo.CreateRecords(ctx, records); err != nil {
 		return nil, fmt.Errorf("create game records failed: %w", err)
+	}
+	if err := s.gameRepo.AdjustRecorderPrizePool(ctx, recorderPrizePoolDelta(records)); err != nil {
+		return nil, fmt.Errorf("update recorder prize pool failed: %w", err)
 	}
 
 	deltas := buildUserStatsDeltas(records)
@@ -153,6 +170,9 @@ func (s *gameService) CancelGame(ctx context.Context, gameID int) error {
 	}
 	if err := s.gameRepo.CancelGame(ctx, gameID); err != nil {
 		return err
+	}
+	if err := s.gameRepo.AdjustRecorderPrizePool(ctx, -recorderPrizePoolDelta(records)); err != nil {
+		return fmt.Errorf("rollback recorder prize pool failed: %w", err)
 	}
 	if game.Status == model.GameStatusSettled {
 		deltas := negateUserStatsDeltas(buildUserStatsDeltas(records))
@@ -200,6 +220,92 @@ func (s *gameService) GetRecentGames(ctx context.Context, limit, offset int) ([]
 	}
 	s.setCache(ctx, cacheKey, result, s.cfg.Redis.GameListTTL())
 	return result, nil
+}
+
+func (s *gameService) GetPrizePool(ctx context.Context) (*model.PrizePoolDTO, error) {
+	balance, err := s.gameRepo.GetRecorderPrizePool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &model.PrizePoolDTO{
+		PoolType: model.PrizePoolTypeRecorder,
+		Balance:  balance,
+	}, nil
+}
+
+func (s *gameService) GetPrizePoolDetail(ctx context.Context) (*model.PrizePoolDetailDTO, error) {
+	contributorsByUserID, err := s.gameRepo.ListRecorderPrizePoolContributors(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jackpotRecords, err := s.gameRepo.ListRecorderPrizePoolJackpotRecords(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	userIDs := make([]int, 0, len(contributorsByUserID)+len(jackpotRecords))
+	for userID := range contributorsByUserID {
+		userIDs = append(userIDs, userID)
+	}
+	for _, record := range jackpotRecords {
+		if record != nil {
+			userIDs = append(userIDs, record.UserID)
+		}
+	}
+	if len(userIDs) == 0 {
+		return &model.PrizePoolDetailDTO{
+			PoolType:      model.PrizePoolTypeRecorder,
+			Contributors:  []*model.PrizePoolContributorDTO{},
+			JackpotEvents: []*model.PrizePoolJackpotEventDTO{},
+		}, nil
+	}
+	usersByID, err := s.findUsersByIDMap(ctx, userIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*model.PrizePoolContributorDTO, 0, len(contributorsByUserID))
+	for _, userID := range uniqueInts(userIDs) {
+		user, ok := usersByID[userID]
+		if !ok {
+			continue
+		}
+		result = append(result, &model.PrizePoolContributorDTO{
+			User:              (&model.UserDTO{}).FromUser(user),
+			ContributedPoints: contributorsByUserID[userID],
+		})
+	}
+
+	// Reorder to match contribution ranking from repository.
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].ContributedPoints == result[j].ContributedPoints {
+			return result[i].User.ID < result[j].User.ID
+		}
+		return result[i].ContributedPoints > result[j].ContributedPoints
+	})
+
+	jackpotEvents := make([]*model.PrizePoolJackpotEventDTO, 0, len(jackpotRecords))
+	for _, record := range jackpotRecords {
+		if record == nil || record.FinalPoints <= 0 {
+			continue
+		}
+		user, ok := usersByID[record.UserID]
+		if !ok {
+			continue
+		}
+		jackpotEvents = append(jackpotEvents, &model.PrizePoolJackpotEventDTO{
+			GameID:    record.GameID,
+			User:      (&model.UserDTO{}).FromUser(user),
+			Points:    record.FinalPoints,
+			CreatedAt: record.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	return &model.PrizePoolDetailDTO{
+		PoolType:      model.PrizePoolTypeRecorder,
+		Contributors:  result,
+		JackpotEvents: jackpotEvents,
+	}, nil
 }
 
 func (s *gameService) GetPlayers(ctx context.Context) (*model.PlayerSummaryDTO, error) {
@@ -323,7 +429,7 @@ func (s *gameService) validateRecordGameRequest(req *model.RecordMaJiangGameRequ
 	return nil
 }
 
-func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangGameRequest, currentPlayerIDs []int, gameType model.GameType) ([]*model.GameRecord, error) {
+func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangGameRequest, currentPlayerIDs []int, gameType model.GameType, recorderPrizePool int) ([]*model.GameRecord, error) {
 	winnerMap := make(map[int]*model.RecordMaJiangWinnerDTO, len(req.Winners))
 	for _, winner := range req.Winners {
 		winnerMap[winner.UserID] = winner
@@ -397,27 +503,39 @@ func (s *gameService) buildRecordedPlayers(gameID int, req *model.RecordMaJiangG
 		recordMap[req.Losers[0]].FinalPoints = -total
 	}
 
-	// 记录者奖励：无论记录者是否在牌桌内，都单独落一条 RoleRecorder 行，避免与输赢分混在一起。
-	// seat 使用 99，避免影响前端按 seat(1-4) 渲染玩家座位。
-	recorderBonus := 0
-	if s.rand.Intn(100) < 1 {
-		recorderBonus = 20
-	} else {
-		recorderBonus = 1
-	}
-	records = append(records, &model.GameRecord{
-		GameID:      gameID,
-		UserID:      req.RecorderID,
-		Seat:        99,
-		Role:        model.RoleRecorder,
-		BasePoints:  0,
-		FinalPoints: recorderBonus,
-		IsSettled:   true,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	})
+	records = append(records, s.buildRecorderPrizeRecord(gameID, req.RecorderID, recorderPrizePool))
 
 	return records, nil
+}
+
+func (s *gameService) buildRecorderPrizeRecord(gameID, recorderID, currentPrizePool int) *model.GameRecord {
+	if currentPrizePool < 0 {
+		currentPrizePool = 0
+	}
+
+	poolContribution := recorderPoolMinIncrement
+	if recorderPoolIncrementRange > 0 {
+		poolContribution += s.rand.Intn(recorderPoolIncrementRange)
+	}
+
+	rewardPoints := 0
+	poolAfterContribution := currentPrizePool + poolContribution
+	if s.rand.Intn(100) < s.cfg.Game.RecorderJackpotChance() {
+		rewardPoints = poolAfterContribution
+	}
+
+	now := time.Now()
+	return &model.GameRecord{
+		GameID:      gameID,
+		UserID:      recorderID,
+		Seat:        recorderPrizeRecordSeat,
+		Role:        model.RoleRecorder,
+		BasePoints:  poolContribution,
+		FinalPoints: rewardPoints,
+		IsSettled:   true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
 }
 
 func (s *gameService) loadCurrentPlayerIDs(ctx context.Context) ([]int, error) {
@@ -667,6 +785,16 @@ func negateUserStatsDeltas(deltas map[int]model.UserStatsDelta) map[int]model.Us
 		result[userID] = delta.Negate()
 	}
 	return result
+}
+
+func recorderPrizePoolDelta(records []*model.GameRecord) int {
+	for _, record := range records {
+		if record == nil || record.Role != model.RoleRecorder {
+			continue
+		}
+		return record.BasePoints - record.FinalPoints
+	}
+	return 0
 }
 
 func (s *gameService) playersCacheKey() string {

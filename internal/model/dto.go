@@ -81,6 +81,33 @@ type PlayerSummaryDTO struct {
 	AllPlayers     []*UserDTO `json:"all_players"`     // 所有玩家
 }
 
+// PrizePoolDTO 奖池信息
+type PrizePoolDTO struct {
+	PoolType string `json:"pool_type"`
+	Balance  int    `json:"balance"`
+}
+
+// PrizePoolContributorDTO 奖池贡献明细
+type PrizePoolContributorDTO struct {
+	User              *UserDTO `json:"user"`
+	ContributedPoints int      `json:"contributed_points"`
+}
+
+// PrizePoolJackpotEventDTO 奖池中奖事件
+type PrizePoolJackpotEventDTO struct {
+	GameID    int      `json:"game_id"`
+	User      *UserDTO `json:"user"`
+	Points    int      `json:"points"`
+	CreatedAt string   `json:"created_at"`
+}
+
+// PrizePoolDetailDTO 奖池明细
+type PrizePoolDetailDTO struct {
+	PoolType      string                      `json:"pool_type"`
+	Contributors  []*PrizePoolContributorDTO  `json:"contributors"`
+	JackpotEvents []*PrizePoolJackpotEventDTO `json:"jackpot_events"`
+}
+
 // WeixinSession 微信登录响应
 type WeixinSession struct {
 	OpenID     string `json:"openid"`

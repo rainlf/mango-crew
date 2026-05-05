@@ -173,5 +173,6 @@ func autoMigrate(db *gorm.DB) error {
 		&model.Game{},
 		&model.GamePlayer{},
 		&model.GameRecord{},
+		&model.PrizePool{},
 	)
 }

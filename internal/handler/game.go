@@ -75,6 +75,30 @@ func (h *GameHandler) GetPlayers(c *gin.Context) {
 	response.Success(c, players)
 }
 
+// GetPrizePool 获取奖池信息
+func (h *GameHandler) GetPrizePool(c *gin.Context) {
+	prizePool, err := h.gameService.GetPrizePool(c.Request.Context())
+	if err != nil {
+		logger.Error("get prize pool failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, prizePool)
+}
+
+// GetPrizePoolDetail 获取奖池明细
+func (h *GameHandler) GetPrizePoolDetail(c *gin.Context) {
+	detail, err := h.gameService.GetPrizePoolDetail(c.Request.Context())
+	if err != nil {
+		logger.Error("get prize pool detail failed", logger.Err(err))
+		response.Error(c, 1, err.Error())
+		return
+	}
+
+	response.Success(c, detail)
+}
+
 // UpdateCurrentPlayers 更新当前牌桌玩家
 func (h *GameHandler) UpdateCurrentPlayers(c *gin.Context) {
 	var req model.UpdateCurrentPlayersRequest
@@ -160,5 +184,7 @@ func RegisterGameRoutes(r *gin.RouterGroup, handler *GameHandler) {
 		gameGroup.GET("/user/list", handler.GetGamesByUser)
 		gameGroup.GET("/recent", handler.GetRecentGames)
 		gameGroup.GET("/players", handler.GetPlayers)
+		gameGroup.GET("/prize-pool", handler.GetPrizePool)
+		gameGroup.GET("/prize-pool/detail", handler.GetPrizePoolDetail)
 	}
 }

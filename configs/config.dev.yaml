@@ -11,6 +11,9 @@ database:
   max_idle_conns: 10
   max_open_conns: 100
 
+game:
+  recorder_jackpot_chance_percent: 20
+
 redis:
   enabled: true
   addr: 10.199.203.199:6379
