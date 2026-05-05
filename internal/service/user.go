@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rainlf/mango-crew/internal/cache"
 	"github.com/rainlf/mango-crew/internal/config"
@@ -38,6 +40,8 @@ type userService struct {
 	appID      string
 	appSecret  string
 }
+
+const maxNicknameLength = 4
 
 // NewUserService 创建用户服务实例
 func NewUserService(userRepo repository.UserRepository, gameRepo repository.GameRepository, cacheStore *cache.Store, cfg *config.Config, wxConfig config.WechatConfig, appID, appSecret string) UserService {
@@ -136,7 +140,14 @@ func (s *userService) UpdateUser(ctx context.Context, userID int, req *model.Upd
 	}
 
 	if req.Nickname != "" {
-		user.Nickname = req.Nickname
+		nickname := strings.TrimSpace(req.Nickname)
+		if nickname == "" {
+			return nil, fmt.Errorf("昵称不能为空")
+		}
+		if utf8.RuneCountInString(nickname) > maxNicknameLength {
+			return nil, fmt.Errorf("昵称最多%d个字", maxNicknameLength)
+		}
+		user.Nickname = nickname
 	}
 
 	if req.Avatar != "" {

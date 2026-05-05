@@ -10,7 +10,7 @@ type CancelGameRequest struct {
 
 // UpdateUserRequest 更新用户信息请求
 type UpdateUserRequest struct {
-	Nickname string `json:"nickname" binding:"max=50"`
+	Nickname string `json:"nickname" binding:"max=4"`
 	Avatar   string `json:"avatar"` // base64编码的图片
 }
 
