@@ -86,6 +86,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	currentPlayerRepo := repository.NewCurrentPlayerRepository(db)
 	gameRepo := repository.NewGameRepository(db)
+	auditProcessor := middleware.NewAuditProcessor(auditLogRepo, 1024)
 
 	// 初始化服务
 	userService := service.NewUserService(userRepo, gameRepo, cacheStore, cfg, cfg.Wechat, wechatAppID, wechatAppSecret)
@@ -100,7 +101,7 @@ func main() {
 
 	// 创建路由
 	r := gin.New()
-	r.Use(middleware.Audit(auditLogRepo))
+	r.Use(auditProcessor.Middleware())
 	r.Use(middleware.Recovery())
 	r.Use(middleware.CORS())
 
@@ -142,6 +143,9 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal("Server forced to shutdown", logger.Err(err))
+	}
+	if err := auditProcessor.Shutdown(ctx); err != nil {
+		logger.Warn("Audit processor shutdown timed out", logger.Err(err))
 	}
 
 	logger.Info("Server exited")

@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,12 +18,36 @@ import (
 )
 
 const maxAuditPayloadSize = 64 * 1024
+const defaultAuditQueueSize = 1024
+const auditWriteTimeout = 3 * time.Second
 
 type auditResponseWriter struct {
 	gin.ResponseWriter
 	body       strings.Builder
 	truncated  bool
 	writeLimit int
+}
+
+type AuditProcessor struct {
+	auditRepo repository.APIAuditLogRepository
+	queue     chan *model.APIAuditLog
+	wg        sync.WaitGroup
+}
+
+func NewAuditProcessor(auditRepo repository.APIAuditLogRepository, queueSize int) *AuditProcessor {
+	if queueSize <= 0 {
+		queueSize = defaultAuditQueueSize
+	}
+
+	processor := &AuditProcessor{
+		auditRepo: auditRepo,
+		queue:     make(chan *model.APIAuditLog, queueSize),
+	}
+
+	processor.wg.Add(1)
+	go processor.run()
+
+	return processor
 }
 
 func newAuditResponseWriter(writer gin.ResponseWriter, limit int) *auditResponseWriter {
@@ -68,8 +94,8 @@ func (w *auditResponseWriter) Body() string {
 	return w.body.String() + "...(truncated)"
 }
 
-// Audit 统一记录 API 请求审计日志
-func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
+// Middleware 统一记录 API 请求审计日志
+func (p *AuditProcessor) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !strings.HasPrefix(c.Request.URL.Path, "/api/") {
 			c.Next()
@@ -104,7 +130,44 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 			Error:      auditErr,
 		}
 
-		if err := auditRepo.Create(c.Request.Context(), auditLog); err != nil {
+		p.enqueue(auditLog)
+	}
+}
+
+func (p *AuditProcessor) Shutdown(ctx context.Context) error {
+	close(p.queue)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		p.wg.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return nil
+	}
+}
+
+func (p *AuditProcessor) enqueue(auditLog *model.APIAuditLog) {
+	select {
+	case p.queue <- auditLog:
+	default:
+		logger.Warn("audit queue full, drop api audit log", logger.String("path", auditLog.Path))
+	}
+}
+
+func (p *AuditProcessor) run() {
+	defer p.wg.Done()
+
+	for auditLog := range p.queue {
+		writeCtx, cancel := context.WithTimeout(context.Background(), auditWriteTimeout)
+		err := p.auditRepo.Create(writeCtx, auditLog)
+		cancel()
+
+		if err != nil {
 			logger.Error("create api audit log failed", logger.Err(err), logger.String("path", auditLog.Path))
 		}
 	}
