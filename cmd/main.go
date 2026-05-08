@@ -82,6 +82,7 @@ func main() {
 	}
 
 	// 初始化仓库
+	auditLogRepo := repository.NewAPIAuditLogRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	currentPlayerRepo := repository.NewCurrentPlayerRepository(db)
 	gameRepo := repository.NewGameRepository(db)
@@ -99,8 +100,9 @@ func main() {
 
 	// 创建路由
 	r := gin.New()
-	r.Use(middleware.Recovery())
+	r.Use(middleware.Audit(auditLogRepo))
 	r.Use(middleware.Logger())
+	r.Use(middleware.Recovery())
 	r.Use(middleware.CORS())
 
 	// 静态文件服务（头像等上传文件）
@@ -169,6 +171,7 @@ func initDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
+		&model.APIAuditLog{},
 		&model.User{},
 		&model.Game{},
 		&model.GamePlayer{},
