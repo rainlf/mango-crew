@@ -77,7 +77,7 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 		}
 
 		startAt := time.Now()
-		requestJSONPayload, hasJSONRequest, requestUserID := captureRequestPayload(c)
+		requestJSONPayload, hasJSONRequest := captureRequestPayload(c)
 		writer := newAuditResponseWriter(c.Writer, maxAuditPayloadSize)
 		c.Writer = writer
 
@@ -87,10 +87,7 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 		httpStatus := c.Writer.Status()
 		responseBody := writer.Body()
 		requestPath := buildAuditPath(c.Request)
-		userID := requestUserID
-		if userID == nil {
-			userID = extractUserIDFromJSONText(responseBody)
-		}
+		userID := resolveAuditUserID(c.Request, responseBody)
 
 		requestText := buildRequestJSONText(requestJSONPayload, hasJSONRequest)
 		auditErr := buildAuditError(c, responseBody)
@@ -113,34 +110,34 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 	}
 }
 
-func captureRequestPayload(c *gin.Context) (any, bool, *int) {
+func captureRequestPayload(c *gin.Context) (any, bool) {
 	contentType := c.ContentType()
 
 	if strings.HasPrefix(contentType, "application/json") {
 		return captureJSONBody(c.Request)
 	}
 
-	return nil, false, extractUserIDFromRequest(c.Request)
+	return nil, false
 }
 
-func captureJSONBody(r *http.Request) (any, bool, *int) {
+func captureJSONBody(r *http.Request) (any, bool) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		r.Body = io.NopCloser(strings.NewReader(""))
-		return nil, false, nil
+		return nil, false
 	}
 
 	r.Body = io.NopCloser(strings.NewReader(string(bodyBytes)))
 	if len(bodyBytes) == 0 {
-		return nil, false, nil
+		return nil, false
 	}
 
 	var parsed any
 	if err := json.Unmarshal(bodyBytes, &parsed); err != nil {
-		return nil, false, extractUserIDFromRequest(r)
+		return nil, false
 	}
 
-	return parsed, true, extractUserIDFromJSONObject(parsed)
+	return parsed, true
 }
 
 func buildRequestJSONText(requestJSONPayload any, hasJSONRequest bool) string {
@@ -208,22 +205,46 @@ func buildAuditPath(r *http.Request) string {
 	return path + "?" + r.URL.RawQuery
 }
 
-func extractUserIDFromRequest(r *http.Request) *int {
-	if userID := extractUserIDFromHeader(r); userID != nil {
-		return userID
-	}
-
-	if userID := extractUserIDFromValues(r.URL.Query()); userID != nil {
-		return userID
-	}
-
-	if err := r.ParseForm(); err == nil {
-		if userID := extractUserIDFromValues(r.PostForm); userID != nil {
+func resolveAuditUserID(r *http.Request, responseBody string) *int {
+	if isLoginAPI(r) {
+		if userID := extractLoginUserIDFromResponse(responseBody); userID != nil {
 			return userID
 		}
 	}
 
-	return nil
+	return extractUserIDFromHeader(r)
+}
+
+func isLoginAPI(r *http.Request) bool {
+	return r.URL.Path == "/api/user/login"
+}
+
+func extractLoginUserIDFromResponse(responseBody string) *int {
+	if responseBody == "" {
+		return nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(responseBody), &payload); err != nil {
+		return nil
+	}
+
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	rawUserID, exists := data["user_id"]
+	if !exists {
+		return nil
+	}
+
+	userID, ok := numberToInt(rawUserID)
+	if !ok {
+		return nil
+	}
+
+	return &userID
 }
 
 func extractUserIDFromHeader(r *http.Request) *int {
@@ -239,79 +260,6 @@ func extractUserIDFromHeader(r *http.Request) *int {
 		}
 	}
 
-	return nil
-}
-
-func extractUserIDFromJSONText(text string) *int {
-	var payload any
-	if err := json.Unmarshal([]byte(text), &payload); err != nil {
-		return nil
-	}
-
-	return extractUserIDFromJSONObject(payload)
-}
-
-func extractUserIDFromJSONObject(payload any) *int {
-	switch value := payload.(type) {
-	case map[string]any:
-		if userID := extractUserIDFromMap(value); userID != nil {
-			return userID
-		}
-		for _, nested := range value {
-			if userID := extractUserIDFromJSONObject(nested); userID != nil {
-				return userID
-			}
-		}
-	case []any:
-		for _, nested := range value {
-			if userID := extractUserIDFromJSONObject(nested); userID != nil {
-				return userID
-			}
-		}
-	}
-
-	return nil
-}
-
-func extractUserIDFromMap(values map[string]any) *int {
-	keys := []string{
-		"user_id",
-		"userId",
-		"recorderId",
-		"recorder_id",
-		"created_by",
-		"createdBy",
-	}
-
-	for _, key := range keys {
-		rawValue, exists := values[key]
-		if !exists {
-			continue
-		}
-		if userID, ok := valueToInt(rawValue); ok {
-			return &userID
-		}
-	}
-
-	return nil
-}
-
-func extractUserIDFromValues(values map[string][]string) *int {
-	for _, key := range []string{"user_id", "userId", "recorderId", "recorder_id"} {
-		candidates, ok := values[key]
-		if !ok || len(candidates) == 0 {
-			continue
-		}
-
-		value := strings.TrimSpace(candidates[0])
-		if value == "" {
-			continue
-		}
-		userID, err := strconv.Atoi(value)
-		if err == nil {
-			return &userID
-		}
-	}
 	return nil
 }
 
@@ -336,33 +284,6 @@ func uniqueStrings(values []string) []string {
 		result = append(result, value)
 	}
 	return result
-}
-
-func valueToInt(value any) (int, bool) {
-	switch typed := value.(type) {
-	case int:
-		return typed, true
-	case int32:
-		return int(typed), true
-	case int64:
-		return int(typed), true
-	case float64:
-		return int(typed), true
-	case json.Number:
-		parsed, err := typed.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return int(parsed), true
-	case string:
-		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
-		if err != nil {
-			return 0, false
-		}
-		return parsed, true
-	default:
-		return 0, false
-	}
 }
 
 func numberToInt(value any) (int, bool) {
