@@ -101,7 +101,6 @@ func main() {
 	// 创建路由
 	r := gin.New()
 	r.Use(middleware.Audit(auditLogRepo))
-	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 	r.Use(middleware.CORS())
 

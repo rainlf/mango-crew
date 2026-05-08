@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS api_audit_log (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    request_id VARCHAR(64) NOT NULL,
     user_id INT NULL,
     http_method VARCHAR(16) NOT NULL,
     path VARCHAR(1024) NOT NULL,

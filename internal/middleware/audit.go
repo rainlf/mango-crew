@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -79,7 +77,6 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 		}
 
 		startAt := time.Now()
-		requestID := ensureRequestID(c)
 		requestJSONPayload, hasJSONRequest, requestUserID := captureRequestPayload(c)
 		writer := newAuditResponseWriter(c.Writer, maxAuditPayloadSize)
 		c.Writer = writer
@@ -98,7 +95,6 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 		requestText := buildRequestJSONText(requestJSONPayload, hasJSONRequest)
 		auditErr := buildAuditError(c, responseBody)
 		auditLog := &model.APIAuditLog{
-			RequestID:  requestID,
 			UserID:     userID,
 			HTTPMethod: c.Request.Method,
 			Path:       truncateTextToSize(requestPath, 1024),
@@ -210,27 +206,6 @@ func buildAuditPath(r *http.Request) string {
 		return path
 	}
 	return path + "?" + r.URL.RawQuery
-}
-
-func ensureRequestID(c *gin.Context) string {
-	requestID := strings.TrimSpace(c.GetHeader("X-Request-ID"))
-	if requestID == "" {
-		requestID = strings.TrimSpace(c.GetHeader("X-Req-Id"))
-	}
-	if requestID == "" {
-		requestID = generateRequestID()
-	}
-
-	c.Writer.Header().Set("X-Request-ID", requestID)
-	return requestID
-}
-
-func generateRequestID() string {
-	randomBytes := make([]byte, 8)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return strconv.FormatInt(time.Now().UnixNano(), 10)
-	}
-	return strconv.FormatInt(time.Now().UnixNano(), 10) + "-" + hex.EncodeToString(randomBytes)
 }
 
 func extractUserIDFromRequest(r *http.Request) *int {

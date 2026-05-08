@@ -5,7 +5,6 @@ import "time"
 // APIAuditLog API 审计日志
 type APIAuditLog struct {
 	ID         int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	RequestID  string    `gorm:"size:64;not null" json:"request_id"`
 	UserID     *int      `json:"user_id,omitempty"`
 	HTTPMethod string    `gorm:"size:16;not null" json:"http_method"`
 	Path       string    `gorm:"size:1024;not null" json:"path"`
