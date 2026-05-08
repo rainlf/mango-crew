@@ -89,23 +89,20 @@ func Audit(auditRepo repository.APIAuditLogRepository) gin.HandlerFunc {
 		latencyMS := time.Since(startAt).Milliseconds()
 		httpStatus := c.Writer.Status()
 		responseBody := writer.Body()
+		requestPath := buildAuditPath(c.Request)
 		userID := requestUserID
 		if userID == nil {
 			userID = extractUserIDFromJSONText(responseBody)
 		}
 
-		bizCode := extractBizCodeFromResponse(responseBody)
 		requestText := buildRequestJSONText(requestJSONPayload, hasJSONRequest)
 		auditErr := buildAuditError(c, responseBody)
-		success := buildSuccess(httpStatus, bizCode, auditErr)
 		auditLog := &model.APIAuditLog{
 			RequestID:  requestID,
 			UserID:     userID,
 			HTTPMethod: c.Request.Method,
-			Path:       c.Request.URL.Path,
+			Path:       truncateTextToSize(requestPath, 1024),
 			HTTPStatus: httpStatus,
-			BizCode:    bizCode,
-			Success:    success,
 			LatencyMS:  latencyMS,
 			ClientIP:   truncateTextToSize(c.ClientIP(), 64),
 			UserAgent:  truncateTextToSize(c.Request.UserAgent(), 255),
@@ -183,16 +180,6 @@ func buildAuditError(c *gin.Context, responseBody string) string {
 	return strings.Join(uniqueStrings(errorTexts), "; ")
 }
 
-func buildSuccess(httpStatus int, bizCode *int, auditErr string) bool {
-	if httpStatus >= http.StatusBadRequest {
-		return false
-	}
-	if bizCode != nil && *bizCode != response.CodeSuccess {
-		return false
-	}
-	return auditErr == ""
-}
-
 func extractErrorFromResponse(responseBody string) string {
 	if responseBody == "" {
 		return ""
@@ -217,27 +204,12 @@ func extractErrorFromResponse(responseBody string) string {
 	return message
 }
 
-func extractBizCodeFromResponse(responseBody string) *int {
-	if responseBody == "" {
-		return nil
+func buildAuditPath(r *http.Request) string {
+	path := r.URL.Path
+	if r.URL.RawQuery == "" {
+		return path
 	}
-
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(responseBody), &payload); err != nil {
-		return nil
-	}
-
-	codeValue, ok := payload["code"]
-	if !ok {
-		return nil
-	}
-
-	code, ok := numberToInt(codeValue)
-	if !ok {
-		return nil
-	}
-
-	return &code
+	return path + "?" + r.URL.RawQuery
 }
 
 func ensureRequestID(c *gin.Context) string {
@@ -262,6 +234,10 @@ func generateRequestID() string {
 }
 
 func extractUserIDFromRequest(r *http.Request) *int {
+	if userID := extractUserIDFromHeader(r); userID != nil {
+		return userID
+	}
+
 	if userID := extractUserIDFromValues(r.URL.Query()); userID != nil {
 		return userID
 	}
@@ -269,6 +245,22 @@ func extractUserIDFromRequest(r *http.Request) *int {
 	if err := r.ParseForm(); err == nil {
 		if userID := extractUserIDFromValues(r.PostForm); userID != nil {
 			return userID
+		}
+	}
+
+	return nil
+}
+
+func extractUserIDFromHeader(r *http.Request) *int {
+	for _, key := range []string{"X-User-ID", "X-User-Id", "x-user-id"} {
+		value := strings.TrimSpace(r.Header.Get(key))
+		if value == "" {
+			continue
+		}
+
+		userID, err := strconv.Atoi(value)
+		if err == nil {
+			return &userID
 		}
 	}
 
